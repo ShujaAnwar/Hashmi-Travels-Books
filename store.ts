@@ -35,10 +35,7 @@ const DEFAULT_ACCOUNTS: Account[] = [
 ];
 
 const getInitialData = (): AppData => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) return JSON.parse(stored);
-
-  return {
+  const defaults: AppData = {
     users: [{ id: 'u1', email: 'admin@travel.com', role: 'Admin', name: 'Super Admin' }],
     customers: [
       { id: 'cust-1', customer_code: 'CUST-001', name: 'Ahmed Travels', phone: '0301-1234567', email: 'ahmed@travels.com', address: 'Main Blvd, Lahore', city: 'Lahore', opening_balance: 50000, opening_balance_type: 'Receivable', is_active: true, is_deleted: false, created_at: '2026-01-01T00:00:00Z' }
@@ -56,6 +53,27 @@ const getInitialData = (): AppData => {
     settings: { defaultROE: 83.5 },
     auditLogs: []
   };
+
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) return defaults;
+
+  try {
+    const parsed = JSON.parse(stored);
+    return {
+      ...defaults,
+      ...parsed,
+      hotelVouchers: parsed.hotelVouchers || [],
+      ticketVouchers: parsed.ticketVouchers || [],
+      visaVouchers: parsed.visaVouchers || [],
+      receipts: parsed.receipts || [],
+      transportVouchers: parsed.transportVouchers || [],
+      vouchers: parsed.vouchers || [],
+      auditLogs: parsed.auditLogs || []
+    };
+  } catch (e) {
+    console.error("Critical: Failed to parse local storage data.", e);
+    return defaults;
+  }
 };
 
 export class Store {
@@ -97,7 +115,7 @@ export class Store {
     try {
       const parsed = JSON.parse(jsonData);
       if (!parsed.accounts || !parsed.vouchers) throw new Error("Invalid schema");
-      this.data = parsed;
+      this.data = { ...getInitialData(), ...parsed };
       this.save();
       return true;
     } catch (e) { return false; }
@@ -108,7 +126,6 @@ export class Store {
     window.location.reload();
   }
 
-  // Account Management
   getAccounts() { return this.data.accounts; }
   getAccount(id: string) { return this.data.accounts.find(a => a.id === id); }
   
@@ -137,7 +154,6 @@ export class Store {
     }
   }
 
-  // Parties
   getCustomers(includeInactive = true) { return this.data.customers.filter(c => !c.is_deleted && (includeInactive || c.is_active)); }
   getCustomer(id: string) { return this.data.customers.find(c => c.id === id); }
   addCustomer(c: any) {
@@ -199,7 +215,6 @@ export class Store {
     });
   }
 
-  // Transactions
   getVouchers() { return this.data.vouchers; }
   addVoucher(v: any) {
     const newV = { ...v, id: `voc-${Date.now()}`, created_at: new Date().toISOString() };
@@ -263,7 +278,7 @@ export class Store {
     this.save();
   }
 
-  getTicketVouchers() { return this.data.ticketVouchers || []; }
+  getTicketVouchers() { return this.data.ticketVouchers; }
   addTicketVoucher(tv: any, entries: any[]) {
     const voucherNo = `TK-${Date.now().toString().slice(-6)}`;
     const accVoucher = this.addVoucher({
@@ -271,7 +286,6 @@ export class Store {
       total_amount: tv.total_sale_pkr, currency: tv.currency, roe: tv.roe, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
     });
     const newTV = { ...tv, id: voucherNo, voucher_id: accVoucher.id };
-    if (!this.data.ticketVouchers) this.data.ticketVouchers = [];
     this.data.ticketVouchers.push(newTV);
     this.save();
     return newTV;
@@ -289,7 +303,7 @@ export class Store {
     this.save();
   }
 
-  getVisaVouchers() { return this.data.visaVouchers || []; }
+  getVisaVouchers() { return this.data.visaVouchers; }
   addVisaVoucher(vv: any, entries: any[]) {
     const voucherNo = `VS-${Date.now().toString().slice(-6)}`;
     const accVoucher = this.addVoucher({
@@ -297,7 +311,6 @@ export class Store {
       total_amount: vv.sale_price_pkr, currency: vv.currency, roe: vv.roe, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
     });
     const newVV = { ...vv, id: voucherNo, voucher_id: accVoucher.id };
-    if (!this.data.visaVouchers) this.data.visaVouchers = [];
     this.data.visaVouchers.push(newVV);
     this.save();
     return newVV;
@@ -340,7 +353,6 @@ export class Store {
     this.save();
   }
 
-  // Unified Ledger with Date Range support
   getAccountLedger(accountId: string, fromDate?: string, toDate?: string) {
     const account = this.getAccount(accountId);
     if (!account) return { accountName: 'Unknown', transactions: [], openingBalance: 0, closingBalance: 0 };
@@ -351,7 +363,9 @@ export class Store {
         date: v.date,
         voucher_no: v.voucher_no,
         description: v.description,
-        type: v.type
+        type: v.type,
+        currency: v.currency,
+        roe: v.roe
       }))
     ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -363,17 +377,12 @@ export class Store {
       const entryDate = new Date(e.date);
       const isBeforeFrom = fromDate ? entryDate < new Date(fromDate) : false;
       const isAfterTo = toDate ? entryDate > new Date(toDate) : false;
-
       const net = e.debit - e.credit;
-      
       if (isBeforeFrom) {
         openingBalance += net;
       } else if (!isAfterTo) {
-        if (filteredTransactions.length === 0) {
-          balance = openingBalance + net;
-        } else {
-          balance += net;
-        }
+        if (filteredTransactions.length === 0) balance = openingBalance + net;
+        else balance += net;
         filteredTransactions.push({ ...e, balance });
       }
     });
@@ -413,17 +422,12 @@ export class Store {
       const entryDate = new Date(e.date);
       const isBeforeFrom = fromDate ? entryDate < new Date(fromDate) : false;
       const isAfterTo = toDate ? entryDate > new Date(toDate) : false;
-
       const net = partyType === 'Customer' ? (e.debit - e.credit) : (e.credit - e.debit);
-
       if (isBeforeFrom) {
         openingBalance += net;
       } else if (!isAfterTo) {
-        if (filteredTransactions.length === 0) {
-          balance = openingBalance + net;
-        } else {
-          balance += net;
-        }
+        if (filteredTransactions.length === 0) balance = openingBalance + net;
+        else balance += net;
         filteredTransactions.push({ ...e, balance });
       }
     });
@@ -454,9 +458,8 @@ export class Store {
   }
 
   getPLReport(fromDate?: string, toDate?: string) {
-    const accounts = this.data.accounts;
-    const incomeAccs = accounts.filter(a => a.type === AccountType.INCOME);
-    const expenseAccs = accounts.filter(a => a.type === AccountType.EXPENSE);
+    const incomeAccs = this.data.accounts.filter(a => a.type === AccountType.INCOME);
+    const expenseAccs = this.data.accounts.filter(a => a.type === AccountType.EXPENSE);
 
     const income = incomeAccs.map(acc => {
       const ledger = this.getAccountLedger(acc.id, fromDate, toDate);
@@ -476,55 +479,44 @@ export class Store {
 
   getBalanceSheet(toDate?: string) {
     const tb = this.getTrialBalance(toDate);
-    
     const assets = tb.filter(a => [AccountType.CASH, AccountType.BANK, AccountType.RECEIVABLE].includes(a.type as AccountType));
     const liabilities = tb.filter(a => a.type === AccountType.PAYABLE);
     const equity = tb.filter(a => a.type === AccountType.EQUITY);
-    
     const { netProfit } = this.getPLReport(undefined, toDate);
-
     const totalAssets = assets.reduce((s, a) => s + (a.debit - a.credit), 0);
     const totalLiabilities = liabilities.reduce((s, a) => s + (a.credit - a.debit), 0);
     const totalEquity = equity.reduce((s, a) => s + (a.credit - a.debit), 0) + netProfit;
-
     return { assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity, netProfit };
   }
 
   getAgingReport(partyType: 'Customer' | 'Vendor', toDate: string = new Date().toISOString().split('T')[0]) {
     const parties = partyType === 'Customer' ? this.getCustomers() : this.getVendors();
     const referenceDate = new Date(toDate);
-
     return parties.map(p => {
       const ledger = this.getPartyLedger(p.id, partyType, undefined, toDate);
       const balance = ledger.closingBalance;
       if (Math.abs(balance) < 0.01) return null;
-
       const buckets = { current: 0, d30: 0, d60: 0, over90: 0 };
-      
       ledger.transactions.forEach(t => {
         const diff = (referenceDate.getTime() - new Date(t.date).getTime()) / (1000 * 3600 * 24);
         const amount = partyType === 'Customer' ? (t.debit - t.credit) : (t.credit - t.debit);
         if (amount === 0) return;
-
         if (diff <= 30) buckets.current += amount;
         else if (diff <= 60) buckets.d30 += amount;
         else if (diff <= 90) buckets.d60 += amount;
         else buckets.over90 += amount;
       });
-
       return { id: p.id, name: p.name, ...buckets, total: balance };
     }).filter(x => x !== null);
   }
 
   getCashFlowStatement(fromDate?: string, toDate?: string) {
     const cashBankAccounts = this.data.accounts.filter(a => a.type === AccountType.CASH || a.type === AccountType.BANK);
-    
     let openingCash = 0;
     cashBankAccounts.forEach(acc => {
       const ledger = this.getAccountLedger(acc.id, undefined, fromDate ? new Date(new Date(fromDate).getTime() - 86400000).toISOString() : undefined);
       openingCash += ledger.closingBalance;
     });
-
     const movements = this.data.vouchers
       .filter(v => (!fromDate || v.date >= fromDate) && (!toDate || v.date <= toDate))
       .flatMap(v => v.entries.filter(e => cashBankAccounts.some(ca => ca.id === e.account_id)).map(e => ({
@@ -534,10 +526,8 @@ export class Store {
         inflow: e.debit,
         outflow: e.credit
       })));
-
     const totalInflow = movements.reduce((s, m) => s + m.inflow, 0);
     const totalOutflow = movements.reduce((s, m) => s + m.outflow, 0);
-
     return { openingCash, movements, totalInflow, totalOutflow, closingCash: openingCash + totalInflow - totalOutflow };
   }
 
