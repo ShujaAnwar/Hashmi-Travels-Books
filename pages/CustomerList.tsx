@@ -92,12 +92,12 @@ const CustomerList: React.FC<{
           <table className="w-full text-left min-w-[1000px]">
             <thead>
               <tr className="bg-slate-900 dark:bg-slate-800 text-white uppercase text-[9px] font-black tracking-widest">
-                <th className={`px-6 sticky left-0 bg-slate-900 dark:bg-slate-800 z-10 ${isCompact ? 'py-3' : 'py-5'}`}>Code</th>
-                <th className={`px-6 ${isCompact ? 'py-3' : 'py-5'}`}>Corporate Title</th>
-                <th className={`px-6 ${isCompact ? 'py-3' : 'py-5'}`}>Communication</th>
-                <th className={`px-6 text-right ${isCompact ? 'py-3' : 'py-5'}`}>Balance (PKR)</th>
-                <th className={`px-6 text-center ${isCompact ? 'py-3' : 'py-5'}`}>Status</th>
-                <th className={`px-6 text-right sticky right-0 bg-slate-900 dark:bg-slate-800 z-10 border-l border-slate-800 ${isCompact ? 'py-3' : 'py-5'}`}>Action</th>
+                <th className={`px-6 sticky left-0 bg-slate-900 dark:bg-slate-800 z-10 ${isCompact ? 'py-2' : 'py-3'}`}>Code</th>
+                <th className={`px-6 ${isCompact ? 'py-2' : 'py-3'}`}>Corporate Title</th>
+                <th className={`px-6 ${isCompact ? 'py-2' : 'py-3'}`}>Communication</th>
+                <th className={`px-6 text-right ${isCompact ? 'py-2' : 'py-3'}`}>Balance (PKR)</th>
+                <th className={`px-6 text-center ${isCompact ? 'py-2' : 'py-3'}`}>Status</th>
+                <th className={`px-6 text-right sticky right-0 bg-slate-900 dark:bg-slate-800 z-10 border-l border-slate-800 ${isCompact ? 'py-2' : 'py-3'}`}>Action</th>
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-slate-100 dark:divide-slate-800">
@@ -105,34 +105,34 @@ const CustomerList: React.FC<{
                 const ledger = db.getPartyLedger(c.id, 'Customer');
                 return (
                   <tr key={c.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group ${!c.is_active ? 'opacity-50' : ''}`}>
-                    <td className={`px-6 font-black text-blue-600 dark:text-blue-400 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 z-10 ${isCompact ? 'py-2 text-xs' : 'py-4 text-sm'}`}>{c.customer_code}</td>
-                    <td className={`px-6 ${isCompact ? 'py-2' : 'py-4'}`}>
-                      <div className={`font-black text-slate-900 dark:text-slate-100 uppercase tracking-tighter ${isCompact ? 'text-[10px]' : 'text-xs'}`}>{c.name}</div>
-                      <div className={`text-slate-400 font-bold uppercase tracking-wide truncate max-w-[180px] mt-0.5 ${isCompact ? 'text-[8px]' : 'text-[9px]'}`}>{c.address || c.city}</div>
+                    <td className={`px-6 font-black text-blue-600 dark:text-blue-400 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 z-10 ${isCompact ? 'py-1.5 text-[10px]' : 'py-3 text-xs'}`}>{c.customer_code}</td>
+                    <td className={`px-6 ${isCompact ? 'py-1.5' : 'py-3'}`}>
+                      <div className={`font-black text-slate-900 dark:text-slate-100 uppercase tracking-tighter ${isCompact ? 'text-[9px]' : 'text-[11px]'}`}>{c.name}</div>
+                      <div className={`text-slate-400 font-bold uppercase tracking-wide truncate max-w-[180px] mt-0.5 ${isCompact ? 'text-[7px]' : 'text-[9px]'}`}>{c.address || c.city}</div>
                     </td>
-                    <td className={`px-6 ${isCompact ? 'py-2' : 'py-4'}`}>
-                      <div className={`font-bold text-slate-700 dark:text-slate-300 ${isCompact ? 'text-[10px]' : 'text-[11px]'}`}>{c.phone}</div>
-                      <div className={`text-slate-400 dark:text-slate-500 font-medium lowercase truncate max-w-[150px] ${isCompact ? 'text-[9px]' : 'text-[10px]'}`}>{c.email}</div>
+                    <td className={`px-6 ${isCompact ? 'py-1.5' : 'py-3'}`}>
+                      <div className={`font-bold text-slate-700 dark:text-slate-300 ${isCompact ? 'text-[9px]' : 'text-[11px]'}`}>{c.phone}</div>
+                      <div className={`text-slate-400 dark:text-slate-500 font-medium lowercase truncate max-w-[150px] ${isCompact ? 'text-[8px]' : 'text-[10px]'}`}>{c.email}</div>
                     </td>
-                    <td className={`px-6 text-right ${isCompact ? 'py-2' : 'py-4'}`}>
-                      <div className={`font-black ${isCompact ? 'text-xs' : 'text-sm'} ${ledger.closingBalance >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-rose-600 dark:text-rose-400'}`}>
+                    <td className={`px-6 text-right ${isCompact ? 'py-1.5' : 'py-3'}`}>
+                      <div className={`font-black ${isCompact ? 'text-[10px]' : 'text-sm'} ${ledger.closingBalance >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-rose-600 dark:text-rose-400'}`}>
                         {Math.abs(ledger.closingBalance).toLocaleString()}
-                        <span className="text-[8px] ml-1 opacity-40">{ledger.closingBalance >= 0 ? 'DR' : 'CR'}</span>
+                        <span className="text-[7px] ml-1 opacity-40">{ledger.closingBalance >= 0 ? 'DR' : 'CR'}</span>
                       </div>
                     </td>
-                    <td className={`px-6 text-center ${isCompact ? 'py-2' : 'py-4'}`}>
+                    <td className={`px-6 text-center ${isCompact ? 'py-1.5' : 'py-3'}`}>
                       {c.is_active ? (
-                        <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2.5 py-1 rounded-xl text-[8px] font-black uppercase tracking-widest">Active</span>
+                        <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-xl text-[7px] font-black uppercase tracking-widest">Active</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 px-2.5 py-1 rounded-xl text-[8px] font-black uppercase tracking-widest">Inactive</span>
+                        <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 px-2 py-0.5 rounded-xl text-[7px] font-black uppercase tracking-widest">Inactive</span>
                       )}
                     </td>
-                    <td className={`px-6 text-right sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 z-10 border-l border-slate-50 dark:border-slate-800 ${isCompact ? 'py-2' : 'py-4'}`}>
+                    <td className={`px-6 text-right sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 z-10 border-l border-slate-50 dark:border-slate-800 ${isCompact ? 'py-1.5' : 'py-3'}`}>
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={() => onViewLedger(c.id)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-blue-600 hover:text-white rounded-lg transition-all"><LayoutList size={14} /></button>
-                         <button onClick={() => { setEditingCustomer(c); setIsFormOpen(true); }} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-900 hover:text-white rounded-lg transition-all"><Edit2 size={14} /></button>
-                         <button onClick={() => handleClone(c)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-sky-600 hover:text-white rounded-lg transition-all"><Copy size={14} /></button>
-                         <button onClick={() => handleDelete(c.id)} className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-rose-600 hover:text-white rounded-lg transition-all"><Trash2 size={14} /></button>
+                         <button onClick={() => onViewLedger(c.id)} className="p-1 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-blue-600 hover:text-white rounded transition-all"><LayoutList size={12} /></button>
+                         <button onClick={() => { setEditingCustomer(c); setIsFormOpen(true); }} className="p-1 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-900 hover:text-white rounded transition-all"><Edit2 size={12} /></button>
+                         <button onClick={() => handleClone(c)} className="p-1 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-sky-600 hover:text-white rounded transition-all"><Copy size={12} /></button>
+                         <button onClick={() => handleDelete(c.id)} className="p-1 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-rose-600 hover:text-white rounded transition-all"><Trash2 size={12} /></button>
                       </div>
                     </td>
                   </tr>

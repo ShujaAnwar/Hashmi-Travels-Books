@@ -69,7 +69,7 @@ const App: React.FC = () => {
       case 'receipts': return <ReceiptList onNew={() => setActivePage('receipt-new')} onPrint={() => {}} onClone={() => {}} onEdit={() => {}} />;
       case 'receipt-new': return <ReceiptEntry onComplete={() => setActivePage('receipts')} onBack={() => setActivePage('receipts')} />;
       case 'customers': return <CustomerList isCompact={isCompact} onViewLedger={handleViewCustomerLedger} onPrintLedger={() => {}} />;
-      case 'vendors': return <VendorList onViewLedger={handleViewVendorLedger} onPrintLedger={() => {}} />;
+      case 'vendors': return <VendorList isCompact={isCompact} onViewLedger={handleViewVendorLedger} onPrintLedger={() => {}} />;
       case 'accounts': return <AccountList isCompact={isCompact} onViewLedger={() => {}} />;
       case 'reports': return <Reports isCompact={isCompact} />;
       case 'security': return <Security isCompact={isCompact} />;
