@@ -13,10 +13,10 @@ interface TransportVoucherEntryProps {
 
 const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplete, onBack, initialData, editingData }) => {
   const isEdit = !!editingData;
-  // Fixed: getCustomers does not accept arguments
   const customers = db.getCustomers();
   const accounts = db.getAccounts();
   const settings = db.getSettings();
+  const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -64,17 +64,19 @@ const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplet
   const amountInSelectedCurrency = formData.quantity * formData.rate;
   const totalPKR = amountInSelectedCurrency * formData.roe;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.customerId || totalPKR <= 0 || !formData.route) {
       alert("Please enter all required fields.");
       return;
     }
 
+    setIsSaving(true);
     const receivableAcc = accounts.find(a => a.type === AccountType.RECEIVABLE);
     const incomeAcc = accounts.find(a => a.id === 'acc-8' || a.type === AccountType.INCOME);
 
     if (!receivableAcc || !incomeAcc) {
       alert("Required accounts missing.");
+      setIsSaving(false);
       return;
     }
 
@@ -99,14 +101,18 @@ const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplet
       narration: formData.narration || `${formData.transportType} service for ${formData.route} trip.`
     };
 
-    // Fixed: calling updateTransportVoucher and addTransportVoucher which are now implemented in Store
-    if (isEdit) {
-      db.updateTransportVoucher(editingData!.id, payload, entries);
-    } else {
-      db.addTransportVoucher(payload, entries);
+    try {
+      if (isEdit) {
+        await db.updateTransportVoucher(editingData!.id, payload, entries);
+      } else {
+        await db.addTransportVoucher(payload, entries);
+      }
+      onComplete();
+    } catch (err: any) {
+      alert("Transport save failed: " + err.message);
+    } finally {
+      setIsSaving(false);
     }
-
-    onComplete();
   };
 
   const inputClass = "w-full border-slate-200 rounded-xl py-2.5 px-4 focus:ring-slate-900 transition-all text-sm bg-white";
@@ -114,10 +120,10 @@ const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplet
 
   return (
     <div className="max-w-5xl mx-auto pb-12">
-      {isEdit && (
-         <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 font-bold text-sm">
-            <AlertTriangle size={20}/>
-            Warning: Editing this record will update ledger postings immediately.
+      {(isEdit || isSaving) && (
+         <div className={`mb-6 p-4 rounded-2xl flex items-center gap-3 font-bold text-sm ${isSaving ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
+            {isSaving ? <RefreshCw className="animate-spin" size={20} /> : <AlertTriangle size={20}/>}
+            {isSaving ? 'Communicating with cloud server...' : 'Warning: Editing this record will update ledger postings immediately.'}
          </div>
       )}
       <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
@@ -211,6 +217,7 @@ const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplet
                     {['PKR', 'SAR'].map(cur => (
                       <button 
                         key={cur}
+                        disabled={isSaving}
                         onClick={() => handleCurrencyChange(cur as Currency)}
                         className={`flex-1 py-2 rounded-lg text-xs font-black transition-all border ${formData.currency === cur ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200'}`}
                       >
@@ -258,9 +265,11 @@ const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplet
                  <div className="pt-4">
                     <button 
                       onClick={handleSave}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl shadow-emerald-900/40 flex items-center justify-center gap-2"
+                      disabled={isSaving}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl shadow-emerald-900/40 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      <Save size={18} /> {isEdit ? 'Update Bill' : 'Post Bill to Ledger'}
+                      {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />} 
+                      {isSaving ? 'Synchronizing...' : (isEdit ? 'Update Bill' : 'Post Bill to Ledger')}
                     </button>
                  </div>
               </div>

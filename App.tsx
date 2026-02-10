@@ -122,7 +122,9 @@ const App: React.FC = () => {
   }
 
   const handleComplete = (targetPage: string) => {
-    // Force a UI tick to show the new record from local storage immediately
+    // Crucial: Increment storeTick to refresh UI components that use the db instance.
+    // Local storage is already the most up-to-date source of truth.
+    // syncToCloud happens in the background via the Store methods.
     setStoreTick(t => t + 1);
     setActivePage(targetPage);
   };

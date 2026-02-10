@@ -17,6 +17,7 @@ const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initial
   const vendors = db.getVendors();
   const accounts = db.getAccounts();
   const settings = db.getSettings();
+  const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -61,18 +62,20 @@ const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initial
   const totalBuyPKR = formData.buyPricePKR * formData.roe;
   const profit = totalSalePKR - totalBuyPKR;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.customerId || !formData.vendorId || !formData.paxName || !formData.country) {
       alert("Required: Customer, Vendor, Pax Name and Country.");
       return;
     }
 
+    setIsSaving(true);
     const receivableAcc = accounts.find(a => a.type === AccountType.RECEIVABLE);
     const payableAcc = accounts.find(a => a.type === AccountType.PAYABLE);
-    const incomeAcc = accounts.find(a => a.type === AccountType.INCOME);
+    const incomeAcc = accounts.find(a => a.id === 'acc-3' || a.type === AccountType.INCOME);
 
     if (!receivableAcc || !payableAcc || !incomeAcc) {
       alert("Accounting Chart incomplete. Ensure Receivable, Payable, and Income accounts exist.");
+      setIsSaving(false);
       return;
     }
 
@@ -100,10 +103,15 @@ const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initial
       roe: formData.roe
     };
 
-    if (isEdit) db.updateVisaVoucher(editingData!.id, payload, entries);
-    else db.addVisaVoucher(payload, entries);
-
-    onComplete();
+    try {
+      if (isEdit) await db.updateVisaVoucher(editingData!.id, payload, entries);
+      else await db.addVisaVoucher(payload, entries);
+      onComplete();
+    } catch (err: any) {
+      alert("Visa save failed: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const labelClass = "block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1";
@@ -250,9 +258,11 @@ const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initial
 
                  <button 
                    onClick={handleSave}
-                   className="w-full bg-purple-600 hover:bg-purple-700 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 relative z-10"
+                   disabled={isSaving}
+                   className="w-full bg-purple-600 hover:bg-purple-700 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 relative z-10 disabled:opacity-50"
                  >
-                    <Save size={20} /> {isEdit ? 'Save Changes' : 'Confirm & Post Visa'}
+                    {isSaving ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />} 
+                    {isSaving ? 'Synchronizing...' : (isEdit ? 'Save Changes' : 'Confirm & Post Visa')}
                  </button>
               </section>
            </div>

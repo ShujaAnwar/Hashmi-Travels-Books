@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../store';
 import { AccountType, TicketVoucher, Currency } from '../types';
-import { Save, Plane, User, Globe, Calculator, AlertTriangle, ArrowLeft, TrendingUp } from 'lucide-react';
+import { Save, Plane, User, Globe, Calculator, AlertTriangle, ArrowLeft, TrendingUp, RefreshCw } from 'lucide-react';
 
 interface TicketVoucherEntryProps {
   onComplete: () => void;
@@ -13,10 +13,10 @@ interface TicketVoucherEntryProps {
 
 const TicketVoucherEntry: React.FC<TicketVoucherEntryProps> = ({ onComplete, initialData, editingData, isCompact }) => {
   const isEdit = !!editingData;
-  // Fixed: getCustomers and getVendors do not accept arguments
   const customers = db.getCustomers();
   const vendors = db.getVendors();
   const accounts = db.getAccounts();
+  const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -64,18 +64,20 @@ const TicketVoucherEntry: React.FC<TicketVoucherEntryProps> = ({ onComplete, ini
   const totalBuyPKR = formData.buyCost * formData.roe;
   const profit = totalSalePKR - totalBuyPKR;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.customerId || !formData.vendorId || !formData.ticketNo) {
       alert("Please fill required fields (Customer, Vendor, Ticket No).");
       return;
     }
 
+    setIsSaving(true);
     const receivableAcc = accounts.find(a => a.type === AccountType.RECEIVABLE);
     const payableAcc = accounts.find(a => a.type === AccountType.PAYABLE);
-    const incomeAcc = accounts.find(a => a.type === AccountType.INCOME);
+    const incomeAcc = accounts.find(a => a.id === 'acc-3' || a.type === AccountType.INCOME);
 
     if (!receivableAcc || !payableAcc || !incomeAcc) {
-      alert("Accounting Chart incomplete. Please check configurations.");
+      alert("Accounting Chart incomplete.");
+      setIsSaving(false);
       return;
     }
 
@@ -105,11 +107,15 @@ const TicketVoucherEntry: React.FC<TicketVoucherEntryProps> = ({ onComplete, ini
       roe: formData.roe
     };
 
-    // Fixed: calling updateTicketVoucher and addTicketVoucher which are now implemented in Store
-    if (isEdit) db.updateTicketVoucher(editingData!.id, payload, entries);
-    else db.addTicketVoucher(payload, entries);
-
-    onComplete();
+    try {
+      if (isEdit) await db.updateTicketVoucher(editingData!.id, payload, entries);
+      else await db.addTicketVoucher(payload, entries);
+      onComplete();
+    } catch (err: any) {
+      alert("Error saving ticket: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const labelClass = "block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1";
@@ -243,9 +249,11 @@ const TicketVoucherEntry: React.FC<TicketVoucherEntryProps> = ({ onComplete, ini
 
                  <button 
                    onClick={handleSave}
-                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 relative z-10"
+                   disabled={isSaving}
+                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 relative z-10 disabled:opacity-50"
                  >
-                    <Save size={20} /> {isEdit ? 'Save Changes' : 'Confirm & Post Ticket'}
+                    {isSaving ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />} 
+                    {isSaving ? 'Synchronizing...' : (isEdit ? 'Save Changes' : 'Confirm & Post Ticket')}
                  </button>
               </section>
            </div>

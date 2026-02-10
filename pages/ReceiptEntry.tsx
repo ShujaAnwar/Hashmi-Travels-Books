@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../store';
 import { ReceiptSourceType, AccountType, Receipt, Currency } from '../types';
-import { Save, ArrowLeft, Wallet, Hash, RefreshCcw, DollarSign } from 'lucide-react';
+import { Save, ArrowLeft, Wallet, Hash, RefreshCw, DollarSign } from 'lucide-react';
 
 interface ReceiptEntryProps {
   onComplete: () => void;
@@ -19,6 +19,7 @@ const ReceiptEntry: React.FC<ReceiptEntryProps> = ({ onComplete, onBack, initial
   const accounts = db.getAccounts();
   const settings = db.getSettings();
   const cashBankAccounts = accounts.filter(a => a.type === AccountType.CASH || a.type === AccountType.BANK);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -51,12 +52,13 @@ const ReceiptEntry: React.FC<ReceiptEntryProps> = ({ onComplete, onBack, initial
 
   const totalPKR = formData.currency === 'PKR' ? formData.amount : (formData.amount * formData.roe);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.targetAccountId || totalPKR <= 0 || (!formData.customerId && formData.type === 'Customer') || (!formData.vendorId && formData.type === 'Vendor')) {
       alert("Please fill all required fields correctly.");
       return;
     }
 
+    setIsSaving(true);
     const partyId = formData.type === 'Customer' ? formData.customerId : formData.vendorId;
     const receivableAcc = accounts.find(a => a.type === AccountType.RECEIVABLE);
     const payableAcc = accounts.find(a => a.type === AccountType.PAYABLE);
@@ -66,13 +68,11 @@ const ReceiptEntry: React.FC<ReceiptEntryProps> = ({ onComplete, onBack, initial
     else if (formData.type === 'Vendor') offsetAccountId = payableAcc?.id || '';
 
     if (!offsetAccountId) {
-      alert("System Configuration Error: Receivable/Payable accounts not found in Chart of Accounts.");
+      alert("System Configuration Error: Ledger accounts missing.");
+      setIsSaving(false);
       return;
     }
 
-    // Double Entry Impact:
-    // Debit Bank/Cash (Asset Increases)
-    // Credit Customer/Vendor (Asset/Liability Decreases - reducing outstanding)
     const entries = [
       { account_id: formData.targetAccountId, debit: totalPKR, credit: 0 },
       { account_id: offsetAccountId, contact_id: partyId, debit: 0, credit: totalPKR },
@@ -90,15 +90,20 @@ const ReceiptEntry: React.FC<ReceiptEntryProps> = ({ onComplete, onBack, initial
       narration: formData.narration || `${formData.type} receipt posted to ${db.getAccount(formData.targetAccountId)?.title}`
     };
 
-    if (isEdit) {
-       db.updateVoucher(editingData!.voucher_id, {
-         date: formData.date, description: payload.narration, total_amount: totalPKR, entries
-       });
-       // Sync local receipts state manually or reload
-    } else {
-       db.addReceipt(payload, entries);
+    try {
+      if (isEdit) {
+         await db.updateVoucher(editingData!.voucher_id, {
+           date: formData.date, description: payload.narration, total_amount: totalPKR, entries
+         });
+      } else {
+         await db.addReceipt(payload, entries);
+      }
+      onComplete();
+    } catch (err: any) {
+      alert("Save failed: " + err.message);
+    } finally {
+      setIsSaving(false);
     }
-    onComplete();
   };
 
   const labelClass = "block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1";
@@ -185,15 +190,20 @@ const ReceiptEntry: React.FC<ReceiptEntryProps> = ({ onComplete, onBack, initial
                     <div className="pt-8 border-t border-white/5 text-center">
                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Impact on Party Ledger (PKR)</p>
                        <div className="flex items-center justify-center gap-3">
-                          <RefreshCcw size={20} className="text-sky-500 opacity-50" />
+                          {isSaving ? <RefreshCw size={24} className="text-sky-500 animate-spin" /> : <Wallet size={24} className="text-sky-500" />}
                           <h4 className="text-4xl font-black text-white">Rs. {totalPKR.toLocaleString()}</h4>
                        </div>
                        <p className="text-[9px] font-bold text-sky-400/60 uppercase mt-4 italic">* Balance will be REDUCED (Credited) by this amount.</p>
                     </div>
                  </div>
 
-                 <button onClick={handleSave} className="w-full bg-sky-600 hover:bg-sky-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-2xl shadow-sky-900/40 flex items-center justify-center gap-3 relative z-10">
-                    <Save size={20} /> Save & Reduce Balance
+                 <button 
+                   onClick={handleSave}
+                   disabled={isSaving}
+                   className="w-full bg-sky-600 hover:bg-sky-500 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-2xl shadow-sky-900/40 flex items-center justify-center gap-3 relative z-10 disabled:opacity-50"
+                 >
+                    {isSaving ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />} 
+                    {isSaving ? 'Synchronizing...' : 'Save & Reduce Balance'}
                  </button>
               </section>
            </div>

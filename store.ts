@@ -61,7 +61,10 @@ const getInitialData = (): AppData => {
 
 export class Store {
   private data: AppData = getInitialData();
-  private save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data)); }
+  
+  private save() { 
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data)); 
+  }
 
   async fetchFromCloud() {
     try {
@@ -73,12 +76,31 @@ export class Store {
         supabase.from('transport_entries').select('*')
       ]);
 
-      if (accs) this.data.accounts = accs.map(a => ({ ...a, type: a.type as AccountType }));
-      if (conts) {
-        this.data.customers = conts.filter(c => c.contact_type === 'Customer').map(c => ({ id: c.id, customer_code: c.code, name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', opening_balance: c.opening_balance || 0, opening_balance_type: 'Receivable', is_active: c.is_active, is_deleted: false, created_at: c.created_at }));
-        this.data.vendors = conts.filter(v => v.contact_type === 'Vendor').map(v => ({ id: v.id, vendor_code: v.code, name: v.name, phone: v.phone || '', email: v.email || '', address: v.address || '', city: v.city || '', opening_balance: v.opening_balance || 0, opening_balance_type: 'Payable', is_active: v.is_active, is_deleted: false, created_at: v.created_at }));
+      if (accs && accs.length > 0) this.data.accounts = accs.map(a => ({ ...a, type: a.type as AccountType }));
+      
+      if (conts && conts.length > 0) {
+        this.data.customers = conts.filter(c => c.contact_type === 'Customer').map(c => ({ 
+          id: c.id, customer_code: c.code, name: c.name, phone: c.phone || '', email: c.email || '', 
+          address: c.address || '', city: c.city || '', opening_balance: c.opening_balance || 0, 
+          opening_balance_type: 'Receivable', is_active: c.is_active, is_deleted: false, created_at: c.created_at 
+        }));
+        this.data.vendors = conts.filter(v => v.contact_type === 'Vendor').map(v => ({ 
+          id: v.id, vendor_code: v.code, name: v.name, phone: v.phone || '', email: v.email || '', 
+          address: v.address || '', city: v.city || '', opening_balance: v.opening_balance || 0, 
+          opening_balance_type: 'Payable', is_active: v.is_active, is_deleted: false, created_at: v.created_at 
+        }));
       }
-      if (vocs && ents) this.data.vouchers = vocs.map(v => ({ ...v, type: v.type as VoucherType, entries: ents.filter(e => e.voucher_id === v.id) }));
+
+      if (vocs) {
+        this.data.vouchers = vocs.map(v => ({ 
+          ...v, 
+          type: v.type as VoucherType, 
+          entries: (ents || []).filter(e => e.voucher_id === v.id).map(e => ({
+            id: e.id, voucher_id: e.voucher_id, account_id: e.account_id, contact_id: e.contact_id, debit: e.debit, credit: e.credit
+          }))
+        }));
+      }
+
       if (recs) this.data.receipts = recs;
       if (hotels) this.data.hotelVouchers = hotels;
       if (tix) this.data.ticketVouchers = tix;
@@ -87,44 +109,98 @@ export class Store {
       
       this.save();
       return { success: true };
-    } catch (error: any) { return { success: false, error: error.message }; }
+    } catch (error: any) { 
+      console.error("Fetch Cloud Error:", error);
+      return { success: false, error: error.message }; 
+    }
   }
 
   async syncToCloud() {
     try {
-      await supabase.from('accounts').upsert(this.data.accounts.map(a => ({ id: a.id, title: a.title, type: a.type })));
+      // 1. Sync Entities first (Parents for accounting)
+      if (this.data.accounts.length > 0) {
+        await supabase.from('accounts').upsert(this.data.accounts.map(a => ({ id: a.id, title: a.title, type: a.type })));
+      }
+      
       const contactPayload = [
         ...this.data.customers.map(c => ({ id: c.id, contact_type: 'Customer', name: c.name, code: c.customer_code, phone: c.phone, email: c.email, address: c.address, city: c.city, opening_balance: c.opening_balance, is_active: c.is_active })),
         ...this.data.vendors.map(v => ({ id: v.id, contact_type: 'Vendor', name: v.name, code: v.vendor_code, phone: v.phone, email: v.email, address: v.address, city: v.city, opening_balance: v.opening_balance, is_active: v.is_active }))
       ];
-      await supabase.from('contacts').upsert(contactPayload);
+      if (contactPayload.length > 0) await supabase.from('contacts').upsert(contactPayload);
 
+      // 2. Sync Vouchers (The headers)
       if (this.data.vouchers.length > 0) {
-        await supabase.from('vouchers').upsert(this.data.vouchers.map(v => ({ id: v.id, voucher_no: v.voucher_no, date: v.date, type: v.type, description: v.description, currency: v.currency, roe: v.roe, total_amount: v.total_amount })));
+        const voucherUpsert = await supabase.from('vouchers').upsert(this.data.vouchers.map(v => ({ 
+          id: v.id, 
+          voucher_no: v.voucher_no, 
+          date: v.date, 
+          type: v.type, 
+          description: v.description, 
+          currency: v.currency, 
+          roe: v.roe, 
+          total_amount: v.total_amount 
+        })));
+        
+        if (voucherUpsert.error) throw voucherUpsert.error;
+
+        // 3. Sync Journal Entries (Child rows)
+        // Ensure every entry has a unique persistent ID
         const allEntries = this.data.vouchers.flatMap(v => v.entries.map(e => ({ 
-          id: e.id, 
+          id: e.id || `ent-${v.id}-${Math.random()}`, 
           voucher_id: v.id, 
           account_id: e.account_id, 
           contact_id: e.contact_id || null, 
           debit: e.debit, 
           credit: e.credit 
         })));
-        if (allEntries.length > 0) await supabase.from('journal_entries').upsert(allEntries);
+        if (allEntries.length > 0) {
+          const entryUpsert = await supabase.from('journal_entries').upsert(allEntries);
+          if (entryUpsert.error) throw entryUpsert.error;
+        }
       }
       
+      // 4. Sync Specialized Business Modules
       if (this.data.receipts.length > 0) {
-        await supabase.from('receipts').upsert(this.data.receipts);
+        await supabase.from('receipts').upsert(this.data.receipts.map(r => ({
+          id: r.id, voucher_id: r.voucher_id, receipt_no: r.receipt_no, date: r.date, type: r.type, 
+          customer_id: r.customer_id, vendor_id: r.vendor_id, account_id: r.account_id, 
+          amount: r.amount, currency: r.currency, roe: r.roe, narration: r.narration
+        })));
       }
-      
       if (this.data.hotelVouchers.length > 0) {
-        await supabase.from('hotel_bookings').upsert(this.data.hotelVouchers);
+        await supabase.from('hotel_bookings').upsert(this.data.hotelVouchers.map(h => ({
+          id: h.id, voucher_id: h.voucher_id, date: h.date, customer_id: h.customer_id, vendor_id: h.vendor_id, 
+          pax_name: h.pax_name, hotel_name: h.hotel_name, city: h.city, check_in: h.check_in, check_out: h.check_out, 
+          nights: h.nights, rooms: h.rooms, sale_price_pkr: h.sale_price_pkr, buy_price_pkr: h.buy_price_pkr, 
+          currency: h.currency, roe: h.roe, profit: h.profit
+        })));
+      }
+      if (this.data.ticketVouchers.length > 0) {
+        await supabase.from('ticket_bookings').upsert(this.data.ticketVouchers.map(t => ({
+          id: t.id, voucher_id: t.voucher_id, date: t.date, customer_id: t.customer_id, vendor_id: t.vendor_id, 
+          pax_name: t.pax_name, airline: t.airline, ticket_no: t.ticket_no, gds_pnr: t.gds_pnr, sector: t.sector, 
+          total_sale_pkr: t.total_sale_pkr, total_buy_pkr: t.total_buy_pkr, profit: t.profit
+        })));
+      }
+      if (this.data.visaVouchers.length > 0) {
+        await supabase.from('visa_applications').upsert(this.data.visaVouchers.map(v => ({
+          id: v.id, voucher_id: v.voucher_id, date: v.date, customer_id: v.customer_id, vendor_id: v.vendor_id, 
+          pax_name: v.pax_name, passport_no: v.passport_no, country: v.country, status: v.status, 
+          sale_price_pkr: v.sale_price_pkr, buy_price_pkr: v.buy_price_pkr, profit: v.profit
+        })));
+      }
+      if (this.data.transportVouchers.length > 0) {
+        await supabase.from('transport_entries').upsert(this.data.transportVouchers.map(t => ({
+          id: t.id, voucher_id: t.voucher_id, voucher_no: t.voucher_no, date: t.date, customer_id: t.customer_id, 
+          transport_type: t.transport_type, route: t.route, quantity: t.quantity, total_amount: t.total_amount
+        })));
       }
 
       this.data.settings.lastCloudSync = new Date().toISOString();
       this.save();
       return { success: true };
     } catch (error: any) { 
-      console.error("Sync Error:", error);
+      console.error("Critical Sync Error:", error);
       return { success: false, error: error.message }; 
     }
   }
@@ -138,6 +214,7 @@ export class Store {
       case VoucherType.TRANSPORT: return 'TR';
       case VoucherType.CASH: return 'CV';
       case VoucherType.BANK: return 'BV';
+      case VoucherType.OPENING: return 'OB';
       default: return 'JV';
     }
   }
@@ -156,22 +233,22 @@ export class Store {
     return `${prefix}-${(maxNum + 1).toString().padStart(4, '0')}`;
   }
 
-  addVoucher(v: any) {
-    const id = v.id || `voc-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+  async addVoucher(v: any) {
+    const id = v.id || `voc-${Date.now()}`;
     const newV = { 
       ...v, 
       id, 
       voucher_no: v.voucher_no || this.generateNextVoucherNo(v.type), 
       created_at: new Date().toISOString(), 
       entries: (v.entries || []).map((e: any) => ({ 
-        id: e.id || `ent-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+        id: e.id || `ent-${id}-${Math.floor(Math.random()*10000)}`,
         ...e, 
         voucher_id: id 
       })) 
     };
     this.data.vouchers.push(newV);
     this.save();
-    return newV;
+    return await this.syncToCloud();
   }
 
   async updateVoucher(id: string, updates: any) {
@@ -181,30 +258,34 @@ export class Store {
         ...this.data.vouchers[idx], 
         ...updates, 
         entries: (updates.entries || []).map((e: any) => ({ 
-          id: e.id || `ent-${Date.now()}-${Math.floor(Math.random()*1000)}`, 
+          id: e.id || `ent-${id}-${Math.floor(Math.random()*10000)}`, 
           ...e, 
           voucher_id: id 
         })) 
       };
       this.save();
-      await this.syncToCloud();
+      return await this.syncToCloud();
     }
+    return { success: false, error: 'Voucher not found' };
   }
 
   async addReceipt(r: any, entries: any[]) {
     const receiptNo = this.generateNextVoucherNo(VoucherType.RECEIPT);
-    const accVoucher = this.addVoucher({
+    const vocId = `voc-rec-${Date.now()}`;
+    const accVoucher = {
+      id: vocId,
       voucher_no: receiptNo, date: r.date, type: VoucherType.RECEIPT,
-      description: r.narration, total_amount: r.amount, currency: r.currency, roe: r.roe, entries
-    });
-    const newR = { ...r, id: `rec-${Date.now()}`, receipt_no: receiptNo, voucher_id: accVoucher.id, created_at: new Date().toISOString() };
+      description: r.narration, total_amount: r.amount, currency: r.currency, roe: r.roe,
+      created_at: new Date().toISOString(),
+      entries: entries.map(e => ({ ...e, id: `ent-${vocId}-${Math.random()}`, voucher_id: vocId }))
+    };
+    this.data.vouchers.push(accVoucher);
+    const newR = { ...r, id: `rec-${Date.now()}`, receipt_no: receiptNo, voucher_id: vocId, created_at: new Date().toISOString() };
     this.data.receipts.push(newR);
     this.save();
-    await this.syncToCloud();
-    return newR;
+    return await this.syncToCloud();
   }
 
-  // Added deleteReceipt method
   async deleteReceipt(id: string) {
     const rIdx = this.data.receipts.findIndex(r => r.id === id);
     if (rIdx !== -1) {
@@ -212,20 +293,26 @@ export class Store {
       this.data.vouchers = this.data.vouchers.filter(v => v.id !== r.voucher_id);
       this.data.receipts.splice(rIdx, 1);
       this.save();
-      await this.syncToCloud();
+      return await this.syncToCloud();
     }
+    return { success: false };
   }
 
   async addHotelVoucher(h: any, entries: any[]) {
-    const voucher = this.addVoucher({
+    const vocId = `voc-hotel-${Date.now()}`;
+    const voucher = {
+      id: vocId,
+      voucher_no: this.generateNextVoucherNo(VoucherType.HOTEL),
       date: h.date, type: VoucherType.HOTEL, description: `Hotel Booking: ${h.pax_name} @ ${h.hotel_name}`,
-      total_amount: h.sale_price_pkr, currency: h.currency, roe: h.roe, entries
-    });
-    const newH = { ...h, id: `hotel-${Date.now()}`, voucher_id: voucher.id };
+      total_amount: h.sale_price_pkr, currency: h.currency, roe: h.roe,
+      created_at: new Date().toISOString(),
+      entries: entries.map(e => ({ ...e, id: `ent-${vocId}-${Math.random()}`, voucher_id: vocId }))
+    };
+    this.data.vouchers.push(voucher);
+    const newH = { ...h, id: `hotel-${Date.now()}`, voucher_id: vocId };
     this.data.hotelVouchers.push(newH);
     this.save();
-    await this.syncToCloud();
-    return newH;
+    return await this.syncToCloud();
   }
 
   async updateHotelVoucher(id: string, updates: any, entries: any[]) {
@@ -238,23 +325,28 @@ export class Store {
       });
       this.data.hotelVouchers[idx] = { ...h, ...updates };
       this.save();
-      await this.syncToCloud();
+      return await this.syncToCloud();
     }
+    return { success: false };
   }
 
   async addTicketVoucher(t: any, entries: any[]) {
-    const voucher = this.addVoucher({
+    const vocId = `voc-tix-${Date.now()}`;
+    const voucher = {
+      id: vocId,
+      voucher_no: this.generateNextVoucherNo(VoucherType.TICKET),
       date: t.date, type: VoucherType.TICKET, description: `Ticket: ${t.pax_name} / ${t.ticket_no}`,
-      total_amount: t.total_sale_pkr, currency: t.currency || 'PKR', roe: t.roe || 1, entries
-    });
-    const newT = { ...t, id: `tix-${Date.now()}`, voucher_id: voucher.id };
+      total_amount: t.total_sale_pkr, currency: t.currency || 'PKR', roe: t.roe || 1,
+      created_at: new Date().toISOString(),
+      entries: entries.map(e => ({ ...e, id: `ent-${vocId}-${Math.random()}`, voucher_id: vocId }))
+    };
+    this.data.vouchers.push(voucher);
+    const newT = { ...t, id: `tix-${Date.now()}`, voucher_id: vocId };
     this.data.ticketVouchers.push(newT);
     this.save();
-    await this.syncToCloud();
-    return newT;
+    return await this.syncToCloud();
   }
 
-  // Added updateTicketVoucher method
   async updateTicketVoucher(id: string, updates: any, entries: any[]) {
     const idx = this.data.ticketVouchers.findIndex(t => t.id === id);
     if (idx !== -1) {
@@ -265,23 +357,28 @@ export class Store {
       });
       this.data.ticketVouchers[idx] = { ...t, ...updates };
       this.save();
-      await this.syncToCloud();
+      return await this.syncToCloud();
     }
+    return { success: false };
   }
 
   async addVisaVoucher(v: any, entries: any[]) {
-    const voucher = this.addVoucher({
+    const vocId = `voc-visa-${Date.now()}`;
+    const voucher = {
+      id: vocId,
+      voucher_no: this.generateNextVoucherNo(VoucherType.VISA),
       date: v.date, type: VoucherType.VISA, description: `Visa: ${v.pax_name} / ${v.country}`,
-      total_amount: v.sale_price_pkr, currency: v.currency || 'PKR', roe: v.roe || 1, entries
-    });
-    const newV = { ...v, id: `visa-${Date.now()}`, voucher_id: voucher.id };
+      total_amount: v.sale_price_pkr, currency: v.currency || 'PKR', roe: v.roe || 1,
+      created_at: new Date().toISOString(),
+      entries: entries.map(e => ({ ...e, id: `ent-${vocId}-${Math.random()}`, voucher_id: vocId }))
+    };
+    this.data.vouchers.push(voucher);
+    const newV = { ...v, id: `visa-${Date.now()}`, voucher_id: vocId };
     this.data.visaVouchers.push(newV);
     this.save();
-    await this.syncToCloud();
-    return newV;
+    return await this.syncToCloud();
   }
 
-  // Added updateVisaVoucher method
   async updateVisaVoucher(id: string, updates: any, entries: any[]) {
     const idx = this.data.visaVouchers.findIndex(v => v.id === id);
     if (idx !== -1) {
@@ -292,23 +389,29 @@ export class Store {
       });
       this.data.visaVouchers[idx] = { ...v, ...updates };
       this.save();
-      await this.syncToCloud();
+      return await this.syncToCloud();
     }
+    return { success: false };
   }
 
   async addTransportVoucher(t: any, entries: any[]) {
-    const voucher = this.addVoucher({
+    const vocId = `voc-trans-${Date.now()}`;
+    const vno = this.generateNextVoucherNo(VoucherType.TRANSPORT);
+    const voucher = {
+      id: vocId,
+      voucher_no: vno,
       date: t.date, type: VoucherType.TRANSPORT, description: t.narration,
-      total_amount: t.total_amount, currency: t.currency || 'PKR', roe: t.roe || 1, entries
-    });
-    const newT = { ...t, id: `trans-${Date.now()}`, voucher_id: voucher.id };
+      total_amount: t.total_amount, currency: t.currency || 'PKR', roe: t.roe || 1,
+      created_at: new Date().toISOString(),
+      entries: entries.map(e => ({ ...e, id: `ent-${vocId}-${Math.random()}`, voucher_id: vocId }))
+    };
+    this.data.vouchers.push(voucher);
+    const newT = { ...t, id: `trans-${Date.now()}`, voucher_id: vocId, voucher_no: vno };
     this.data.transportVouchers.push(newT);
     this.save();
-    await this.syncToCloud();
-    return newT;
+    return await this.syncToCloud();
   }
 
-  // Added updateTransportVoucher method
   async updateTransportVoucher(id: string, updates: any, entries: any[]) {
     const idx = this.data.transportVouchers.findIndex(t => t.id === id);
     if (idx !== -1) {
@@ -319,25 +422,40 @@ export class Store {
       });
       this.data.transportVouchers[idx] = { ...t, ...updates };
       this.save();
-      await this.syncToCloud();
+      return await this.syncToCloud();
     }
+    return { success: false };
   }
 
   getPartyLedger(partyId: string, partyType: 'Customer' | 'Vendor', fromDate?: string, toDate?: string) {
+    const party = partyType === 'Customer' ? this.getCustomer(partyId) : this.getVendor(partyId);
+    let openingBalance = 0;
+    
+    if (party) {
+        const ob = party.opening_balance || 0;
+        openingBalance = party.opening_balance_type === 'Receivable' ? ob : -ob;
+        if (partyType === 'Vendor') openingBalance = -openingBalance;
+    }
+
     const entries = this.data.vouchers.flatMap(v => (v.entries || []).filter(e => e.contact_id === partyId).map(e => ({ ...e, date: v.date, voucher_no: v.voucher_no, description: v.description, type: v.type, currency: v.currency, roe: v.roe }))).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    let balance = 0, openingBalance = 0;
+    
+    let runningBalance = openingBalance;
     const filtered: any[] = [];
+
     entries.forEach(e => {
       const entryDate = new Date(e.date);
       const net = partyType === 'Customer' ? (e.debit - e.credit) : (e.credit - e.debit);
-      if (fromDate && entryDate < new Date(fromDate)) openingBalance += net;
-      else if (!toDate || entryDate <= new Date(toDate)) {
-        if (filtered.length === 0) balance = openingBalance + net; else balance += net;
-        filtered.push({ ...e, balance });
+      
+      if (fromDate && entryDate < new Date(fromDate)) {
+          openingBalance += net;
+          runningBalance += net;
+      } else if (!toDate || entryDate <= new Date(toDate)) {
+        runningBalance += net;
+        filtered.push({ ...e, balance: runningBalance });
       }
     });
-    const party = partyType === 'Customer' ? this.getCustomer(partyId) : this.getVendor(partyId);
-    return { partyName: party?.name || 'Unknown', openingBalance, transactions: filtered, closingBalance: openingBalance + filtered.reduce((s, t) => s + (partyType === 'Customer' ? (t.debit - t.credit) : (t.credit - t.debit)), 0) };
+
+    return { partyName: party?.name || 'Unknown', openingBalance, transactions: filtered, closingBalance: runningBalance };
   }
 
   getTrialBalance(toDate?: string) {
@@ -361,7 +479,7 @@ export class Store {
       }
     });
     const acc = this.getAccount(accountId);
-    return { accountName: acc?.title || 'Unknown', openingBalance, transactions: filtered, closingBalance: openingBalance + filtered.reduce((s, t) => s + (t.debit - t.credit), 0) };
+    return { accountName: acc?.title || 'Unknown', accountType: acc?.type, openingBalance, transactions: filtered, closingBalance: openingBalance + filtered.reduce((s, t) => s + (t.debit - t.credit), 0) };
   }
 
   getAccount(id: string) { return this.data.accounts.find(a => a.id === id); }
@@ -373,36 +491,141 @@ export class Store {
   getVouchers() { return this.data.vouchers; }
   getReceipts() { return this.data.receipts; }
   getSettings() { return this.data.settings; }
-  // Added getAuditLogs method
   getAuditLogs() { return this.data.auditLogs; }
-  updateSettings(s: any) { this.data.settings = { ...this.data.settings, ...s }; this.save(); }
-  addCustomer(c: any) { this.data.customers.push({ ...c, id: `cust-${Date.now()}`, customer_code: `C${this.data.customers.length + 1}`, is_deleted: false, created_at: new Date().toISOString() }); this.save(); this.syncToCloud(); }
-  updateCustomer(id: string, u: any) { const i = this.data.customers.findIndex(c => c.id === id); if (i !== -1) { this.data.customers[i] = { ...this.data.customers[i], ...u }; this.save(); this.syncToCloud(); } }
-  // Added deleteCustomer method
+  
+  async updateSettings(s: any) { 
+    this.data.settings = { ...this.data.settings, ...s }; 
+    this.save(); 
+  }
+  
+  async addCustomer(c: any) { 
+    const id = `cust-${Date.now()}`;
+    this.data.customers.push({ 
+      ...c, id, 
+      customer_code: `C${this.data.customers.length + 1}`, 
+      is_deleted: false, created_at: new Date().toISOString() 
+    }); 
+
+    // Create Opening Balance Double-Entry impact
+    if (c.opening_balance > 0) {
+      const obType = c.opening_balance_type === 'Receivable' ? 'Debit' : 'Credit';
+      const equityAcc = this.data.accounts.find(a => a.id === 'acc-11');
+      const receivableAcc = this.data.accounts.find(a => a.type === AccountType.RECEIVABLE);
+      if (equityAcc && receivableAcc) {
+         await this.addVoucher({
+            date: new Date().toISOString().split('T')[0],
+            type: VoucherType.OPENING,
+            description: `Opening Balance for ${c.name}`,
+            total_amount: c.opening_balance,
+            currency: 'PKR',
+            roe: 1,
+            entries: [
+               { account_id: receivableAcc.id, contact_id: id, debit: obType === 'Debit' ? c.opening_balance : 0, credit: obType === 'Credit' ? c.opening_balance : 0 },
+               { account_id: equityAcc.id, debit: obType === 'Credit' ? c.opening_balance : 0, credit: obType === 'Debit' ? c.opening_balance : 0 }
+            ]
+         });
+      }
+    }
+
+    this.save(); 
+    return await this.syncToCloud(); 
+  }
+  
+  async updateCustomer(id: string, u: any) { 
+    const i = this.data.customers.findIndex(c => c.id === id); 
+    if (i !== -1) { 
+      this.data.customers[i] = { ...this.data.customers[i], ...u }; 
+      this.save(); 
+      return await this.syncToCloud(); 
+    } 
+  }
+  
   async deleteCustomer(id: string) {
     const hasTransactions = this.data.vouchers.some(v => v.entries.some(e => e.contact_id === id));
     if (hasTransactions) throw new Error("Cannot delete entity with transaction history. Deactivate instead.");
     this.data.customers = this.data.customers.filter(c => c.id !== id);
     this.save();
-    await this.syncToCloud();
+    return await this.syncToCloud();
   }
-  addVendor(v: any) { this.data.vendors.push({ ...v, id: `vend-${Date.now()}`, vendor_code: `V${this.data.vendors.length + 1}`, is_deleted: false, created_at: new Date().toISOString() }); this.save(); this.syncToCloud(); }
-  updateVendor(id: string, u: any) { const i = this.data.vendors.findIndex(v => v.id === id); if (i !== -1) { this.data.vendors[i] = { ...this.data.vendors[i], ...u }; this.save(); this.syncToCloud(); } }
-  // Added deleteVendor method
+  
+  async addVendor(v: any) { 
+    const id = `vend-${Date.now()}`;
+    this.data.vendors.push({ 
+      ...v, id, 
+      vendor_code: `V${this.data.vendors.length + 1}`, 
+      is_deleted: false, created_at: new Date().toISOString() 
+    }); 
+
+    // Create Opening Balance Double-Entry impact
+    if (v.opening_balance > 0) {
+      const equityAcc = this.data.accounts.find(a => a.id === 'acc-11');
+      const payableAcc = this.data.accounts.find(a => a.type === AccountType.PAYABLE);
+      if (equityAcc && payableAcc) {
+         await this.addVoucher({
+            date: new Date().toISOString().split('T')[0],
+            type: VoucherType.OPENING,
+            description: `Opening Balance for Vendor: ${v.name}`,
+            total_amount: v.opening_balance,
+            currency: 'PKR',
+            roe: 1,
+            entries: [
+               { account_id: payableAcc.id, contact_id: id, debit: 0, credit: v.opening_balance },
+               { account_id: equityAcc.id, debit: v.opening_balance, credit: 0 }
+            ]
+         });
+      }
+    }
+
+    this.save(); 
+    return await this.syncToCloud(); 
+  }
+  
+  async updateVendor(id: string, u: any) { 
+    const i = this.data.vendors.findIndex(v => v.id === id); 
+    if (i !== -1) { 
+      this.data.vendors[i] = { ...this.data.vendors[i], ...u }; 
+      this.save(); 
+      return await this.syncToCloud(); 
+    } 
+  }
+  
   async deleteVendor(id: string) {
     const hasTransactions = this.data.vouchers.some(v => v.entries.some(e => e.contact_id === id));
     if (hasTransactions) throw new Error("Cannot delete entity with transaction history. Deactivate instead.");
     this.data.vendors = this.data.vendors.filter(v => v.id !== id);
     this.save();
-    await this.syncToCloud();
+    return await this.syncToCloud();
   }
-  addAccount(a: any) { this.data.accounts.push({ ...a, id: `acc-${Date.now()}`, created_at: new Date().toISOString() }); this.save(); this.syncToCloud(); }
-  updateAccount(id: string, u: any) { const i = this.data.accounts.findIndex(a => a.id === id); if (i !== -1) { this.data.accounts[i] = { ...this.data.accounts[i], ...u }; this.save(); this.syncToCloud(); } }
-  deleteAccount(id: string) { this.data.accounts = this.data.accounts.filter(a => a.id !== id); this.save(); this.syncToCloud(); }
+  
+  async addAccount(a: any) { 
+    this.data.accounts.push({ 
+      ...a, id: `acc-${Date.now()}`, 
+      created_at: new Date().toISOString() 
+    }); 
+    this.save(); 
+    return await this.syncToCloud(); 
+  }
+  
+  async updateAccount(id: string, u: any) { 
+    const i = this.data.accounts.findIndex(a => a.id === id); 
+    if (i !== -1) { 
+      this.data.accounts[i] = { ...this.data.accounts[i], ...u }; 
+      this.save(); 
+      return await this.syncToCloud(); 
+    } 
+  }
+  
+  async deleteAccount(id: string) { 
+    this.data.accounts = this.data.accounts.filter(a => a.id !== id); 
+    this.save(); 
+    return await this.syncToCloud(); 
+  }
+  
   getHotelVouchers() { return this.data.hotelVouchers; }
   getTicketVouchers() { return this.data.ticketVouchers; }
   getVisaVouchers() { return this.data.visaVouchers; }
   getTransportVouchers() { return this.data.transportVouchers; }
+  
   getPLReport(f?: string, t?: string) {
     const tb = this.getTrialBalance(t);
     const income = tb.filter(a => a.type === AccountType.INCOME).map(a => ({ title: a.title, amount: a.credit - a.debit }));
@@ -410,6 +633,7 @@ export class Store {
     const totalIncome = income.reduce((s, i) => s + i.amount, 0), totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
     return { income, expenses, totalIncome, totalExpenses, netProfit: totalIncome - totalExpenses };
   }
+  
   getBalanceSheet(t?: string) {
     const tb = this.getTrialBalance(t);
     const pl = this.getPLReport(undefined, t);
@@ -421,6 +645,7 @@ export class Store {
     const totalEquity = equity.reduce((s, a) => s + (a.credit - a.debit), 0) + pl.netProfit;
     return { assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity, netProfit: pl.netProfit };
   }
+  
   getAgingReport(type: 'Customer' | 'Vendor', toDate: string) {
     const entities = type === 'Customer' ? this.getCustomers() : this.getVendors();
     return entities.map(e => {
@@ -435,6 +660,7 @@ export class Store {
       return { id: e.id, name: e.name, ...buckets, total: ledger.closingBalance };
     });
   }
+  
   getCashFlowStatement(f: string, t: string) {
     const cashAccs = this.data.accounts.filter(a => a.type === AccountType.CASH || a.type === AccountType.BANK);
     let openingCash = 0, totalIn = 0, totalOut = 0, movements: any[] = [];
@@ -445,10 +671,27 @@ export class Store {
     });
     return { openingCash, totalInflow: totalIn, totalOutflow: totalOut, movements: movements.sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime()), closingCash: openingCash + totalIn - totalOut };
   }
-  verifyAccountingIntegrity() { const tb = this.getTrialBalance(); const dr = tb.reduce((s,a)=>s+a.debit,0), cr = tb.reduce((s,a)=>s+a.credit,0); return { balanced: Math.abs(dr-cr)<0.01, totalDebit: dr, totalCredit: cr, difference: dr-cr }; }
+  
+  verifyAccountingIntegrity() { 
+    const tb = this.getTrialBalance(); 
+    const dr = tb.reduce((s,a)=>s+a.debit,0), cr = tb.reduce((s,a)=>s+a.credit,0); 
+    return { balanced: Math.abs(dr-cr)<0.01, totalDebit: dr, totalCredit: cr, difference: dr-cr }; 
+  }
+  
   exportDatabase() { return JSON.stringify(this.data); }
-  importDatabase(j: string) { try { this.data = JSON.parse(j); this.save(); return true; } catch(e) { return false; } }
-  resetDatabase() { localStorage.removeItem(STORAGE_KEY); window.location.reload(); }
+  
+  importDatabase(j: string) { 
+    try { 
+      this.data = JSON.parse(j); 
+      this.save(); 
+      return true; 
+    } catch(e) { return false; } 
+  }
+  
+  resetDatabase() { 
+    localStorage.removeItem(STORAGE_KEY); 
+    window.location.reload(); 
+  }
 }
 
 export const db = new Store();

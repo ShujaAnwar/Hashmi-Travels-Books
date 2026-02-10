@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { db } from '../store';
 import { AccountType, VoucherType } from '../types';
 import { 
@@ -11,17 +11,27 @@ import {
   Activity, 
   ShieldCheck,
   AlertTriangle,
-  Ticket
+  Ticket,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { supabase } from '../lib/supabase';
 
 interface DashboardProps {
   isCompact: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ isCompact }) => {
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
   const integrity = useMemo(() => db.verifyAccountingIntegrity(), []);
   
+  useEffect(() => {
+    supabase.from('accounts').select('count', { count: 'exact', head: true })
+      .then(res => setDbConnected(!res.error))
+      .catch(() => setDbConnected(false));
+  }, []);
+
   const stats = useMemo(() => {
     const trialBalance = db.getTrialBalance();
     return {
@@ -43,14 +53,22 @@ const Dashboard: React.FC<DashboardProps> = ({ isCompact }) => {
 
   return (
     <div className={`max-w-[1600px] mx-auto ${isCompact ? 'space-y-4' : 'space-y-6 sm:space-y-8'}`}>
-      {/* Integrity Badge */}
-      <div className={`flex items-start sm:items-center gap-3 rounded-[1.5rem] border shadow-sm transition-all ${isCompact ? 'px-4 py-2.5' : 'px-6 py-4'} ${integrity.balanced ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/30 text-rose-800 dark:text-rose-400'}`}>
-        {integrity.balanced ? <ShieldCheck size={isCompact ? 16 : 20} className="shrink-0" /> : <AlertTriangle size={isCompact ? 16 : 20} className="shrink-0" />}
-        <span className={`${isCompact ? 'text-[10px]' : 'text-xs sm:text-sm'} font-black uppercase tracking-widest`}>
-          {integrity.balanced 
-            ? `Balanced Ledger (Total: Rs. ${integrity.totalDebit.toLocaleString()})` 
-            : `Balance Mismatch! Diff: Rs. ${integrity.difference.toLocaleString()}`}
-        </span>
+      
+      {/* Integrity & DB Status Badge */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className={`flex-1 flex items-start sm:items-center gap-3 rounded-[1.5rem] border shadow-sm transition-all ${isCompact ? 'px-4 py-2.5' : 'px-6 py-4'} ${integrity.balanced ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/30 text-rose-800 dark:text-rose-400'}`}>
+          {integrity.balanced ? <ShieldCheck size={isCompact ? 16 : 20} className="shrink-0" /> : <AlertTriangle size={isCompact ? 16 : 20} className="shrink-0" />}
+          <span className={`${isCompact ? 'text-[10px]' : 'text-xs sm:text-sm'} font-black uppercase tracking-widest`}>
+            {integrity.balanced 
+              ? `Balanced Ledger (Total: Rs. ${integrity.totalDebit.toLocaleString()})` 
+              : `Balance Mismatch! Diff: Rs. ${integrity.difference.toLocaleString()}`}
+          </span>
+        </div>
+
+        <div className={`flex items-center gap-3 rounded-[1.5rem] border shadow-sm px-6 py-4 ${dbConnected ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
+           {dbConnected ? <Cloud size={20} /> : <CloudOff size={20} />}
+           <span className="text-xs font-black uppercase tracking-widest">{dbConnected ? 'Database Connected' : 'Database Offline'}</span>
+        </div>
       </div>
 
       {/* Stat Cards */}

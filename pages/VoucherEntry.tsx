@@ -21,8 +21,8 @@ const VoucherEntry: React.FC<VoucherEntryProps> = ({ onComplete, initialData, ed
   const isEdit = !!editingData;
   const accounts = db.getAccounts();
   const settings = db.getSettings();
-  // Fixed: getCustomers and getVendors do not accept arguments
   const parties = [...db.getCustomers(), ...db.getVendors()];
+  const [isSaving, setIsSaving] = useState(false);
 
   const [type, setType] = useState<VoucherType>(VoucherType.CASH);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -87,9 +87,10 @@ const VoucherEntry: React.FC<VoucherEntryProps> = ({ onComplete, initialData, ed
     setEntries(newEntries);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isBalanced) return;
 
+    setIsSaving(true);
     const payload = {
       date,
       type,
@@ -98,8 +99,6 @@ const VoucherEntry: React.FC<VoucherEntryProps> = ({ onComplete, initialData, ed
       currency,
       roe,
       entries: entries.map(e => ({
-        id: `entry-${Math.random()}`,
-        voucher_id: '',
         account_id: e.account_id,
         contact_id: e.contact_id,
         debit: e.debit * roe,
@@ -107,21 +106,26 @@ const VoucherEntry: React.FC<VoucherEntryProps> = ({ onComplete, initialData, ed
       }))
     };
 
-    if (isEdit) {
-      db.updateVoucher(editingData!.id, payload);
-    } else {
-      db.addVoucher(payload); // Store automatically handles sequential voucher_no
+    try {
+      if (isEdit) {
+        await db.updateVoucher(editingData!.id, payload);
+      } else {
+        await db.addVoucher(payload);
+      }
+      onComplete();
+    } catch (err: any) {
+      alert("Save failed: " + err.message);
+    } finally {
+      setIsSaving(false);
     }
-
-    onComplete();
   };
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
-      {isEdit && (
-         <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 font-bold text-sm">
-            <AlertTriangle size={20}/>
-            Editing Mode: Updating this voucher will replace all associated ledger entries.
+      {(isEdit || isSaving) && (
+         <div className={`mb-6 p-4 rounded-2xl flex items-center gap-3 font-bold text-sm ${isSaving ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
+            {isSaving ? <RefreshCw className="animate-spin" size={20} /> : <AlertTriangle size={20}/>}
+            {isSaving ? 'Synchronizing with cloud registry...' : 'Editing Mode: Updating this voucher will replace all associated ledger entries.'}
          </div>
       )}
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -247,7 +251,8 @@ const VoucherEntry: React.FC<VoucherEntryProps> = ({ onComplete, initialData, ed
             <div className="flex gap-12">
                <button 
                  onClick={handleAddRow}
-                 className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shadow-sm"
+                 disabled={isSaving}
+                 className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shadow-sm disabled:opacity-50"
                >
                  <Plus size={16} /> Add Entry Line
                </button>
@@ -276,15 +281,16 @@ const VoucherEntry: React.FC<VoucherEntryProps> = ({ onComplete, initialData, ed
               )}
               
               <button 
-                disabled={!isBalanced}
+                disabled={!isBalanced || isSaving}
                 onClick={handleSave}
                 className={`flex items-center gap-2 px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl transition-all ${
-                  isBalanced 
+                  isBalanced && !isSaving
                     ? 'bg-slate-900 dark:bg-emerald-600 text-white hover:bg-slate-800' 
                     : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                <Save size={18} /> {isEdit ? 'Update Voucher' : 'Save & Post'}
+                {isSaving ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />} 
+                {isSaving ? 'Synchronizing...' : (isEdit ? 'Update Voucher' : 'Save & Post')}
               </button>
             </div>
           </div>
