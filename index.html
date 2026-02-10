@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +6,13 @@
   <title>TravelLedger Pro - Agency Accounting</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Robust polyfill for process.env to satisfy Gemini SDK and other library requirements
+    (function() {
+      const processEnv = { API_KEY: "" };
+      window.process = window.process || { env: processEnv };
+      if (!window.process.env) window.process.env = processEnv;
+    })();
+    
     tailwind.config = {
       darkMode: 'class',
       theme: {
@@ -22,7 +28,6 @@
   <style>
     body { font-family: 'Inter', sans-serif; transition: background-color 0.3s ease, color 0.3s ease; }
     
-    /* Global scrollbar styling for dark mode */
     .dark ::-webkit-scrollbar { width: 8px; height: 8px; }
     .dark ::-webkit-scrollbar-track { background: #0f172a; }
     .dark ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
@@ -35,30 +40,26 @@
       #root { height: auto !important; overflow: visible !important; }
       main { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
       .print-shadow-none { box-shadow: none !important; border: 1px solid #eee !important; }
-      
-      /* Ensure tables print properly */
       table { border-collapse: collapse !important; width: 100% !important; }
       th, td { border: 1px solid #e2e8f0 !important; page-break-inside: avoid !important; }
       thead { display: table-header-group !important; }
-      
-      /* Force colors if possible */
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
     
     .print-only { display: none; }
-    
-    /* Smooth transitions for theme switching */
     .theme-transition { transition: all 0.3s ease; }
   </style>
 <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "recharts": "https://esm.sh/recharts@^3.7.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react": "https://esm.sh/react@19.0.0",
+    "react/": "https://esm.sh/react@19.0.0/",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
+    "@google/genai": "https://esm.sh/@google/genai@1.40.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react,react-dom",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.2",
     "xlsx": "https://esm.sh/xlsx@0.18.5"
@@ -68,5 +69,6 @@
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 theme-transition">
   <div id="root"></div>
+  <script type="module" src="./index.tsx"></script>
 </body>
 </html>
