@@ -83,6 +83,43 @@ export class Store {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
   }
 
+  // --- Sequential Numbering Logic ---
+  
+  getPrefixForType(type: VoucherType): string {
+    switch (type) {
+      case VoucherType.CASH: return 'CV';
+      case VoucherType.BANK: return 'BV';
+      case VoucherType.SALES: return 'SV';
+      case VoucherType.PURCHASE: return 'PV';
+      case VoucherType.JOURNAL: return 'JV';
+      case VoucherType.HOTEL: return 'HV';
+      case VoucherType.RECEIPT: return 'RV';
+      case VoucherType.TRANSPORT: return 'TV';
+      case VoucherType.TICKET: return 'TK';
+      case VoucherType.VISA: return 'VS';
+      case VoucherType.OPENING: return 'OP';
+      default: return 'VO';
+    }
+  }
+
+  generateNextVoucherNo(type: VoucherType): string {
+    const prefix = this.getPrefixForType(type);
+    const pattern = new RegExp(`^${prefix}-(\\d+)$`);
+    
+    const maxNum = this.data.vouchers
+      .filter(v => v.type === type)
+      .reduce((max, v) => {
+        const match = v.voucher_no.match(pattern);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          return isNaN(num) ? max : Math.max(max, num);
+        }
+        return max;
+      }, 0);
+
+    return `${prefix}-${(maxNum + 1).toString().padStart(4, '0')}`;
+  }
+
   logAudit(record_id: string, module: string, old_data: any, new_data: any, remarks?: string) {
     const user = this.getCurrentUser();
     const log: AuditLog = {
@@ -167,7 +204,8 @@ export class Store {
 
   updateCustomer(id: string, updates: any) {
     const idx = this.data.customers.findIndex(c => c.id === id);
-    if (idx !== -1) { this.data.customers[idx] = { ...this.data.customers[idx], ...updates }; this.save(); }
+    if (idx !== -1) {
+      this.data.customers[idx] = { ...this.data.customers[idx], ...updates }; this.save(); }
   }
 
   deleteCustomer(id: string) {
@@ -210,14 +248,19 @@ export class Store {
       entries = [{ account_id: apAcc.id, contact_id: party.id, debit: isCr ? 0 : party.opening_balance, credit: isCr ? party.opening_balance : 0 }, { account_id: obEquityAcc.id, debit: isCr ? party.opening_balance : 0, credit: isCr ? 0 : party.opening_balance }];
     }
     this.addVoucher({
-      voucher_no: `OP-${party.id.slice(-4)}`, date: party.created_at.split('T')[0], type: VoucherType.OPENING, description: `Opening for ${party.name}`,
+      voucher_no: this.generateNextVoucherNo(VoucherType.OPENING), date: party.created_at.split('T')[0], type: VoucherType.OPENING, description: `Opening for ${party.name}`,
       total_amount: party.opening_balance, currency: 'PKR', roe: 1, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
     });
   }
 
   getVouchers() { return this.data.vouchers; }
   addVoucher(v: any) {
-    const newV = { ...v, id: `voc-${Date.now()}`, created_at: new Date().toISOString() };
+    const newV = { 
+      ...v, 
+      id: `voc-${Date.now()}`, 
+      voucher_no: v.voucher_no || this.generateNextVoucherNo(v.type),
+      created_at: new Date().toISOString() 
+    };
     this.data.vouchers.push(newV);
     this.save();
     return newV;
@@ -230,7 +273,7 @@ export class Store {
 
   getReceipts() { return this.data.receipts; }
   addReceipt(r: any, entries: any[]) {
-    const receiptNo = `RV-${Date.now().toString().slice(-6)}`;
+    const receiptNo = this.generateNextVoucherNo(VoucherType.RECEIPT);
     const accVoucher = this.addVoucher({
       voucher_no: receiptNo, date: r.date, type: VoucherType.RECEIPT, description: r.narration,
       total_amount: r.amount, currency: r.currency, roe: r.roe, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
@@ -255,7 +298,7 @@ export class Store {
 
   getHotelVouchers() { return this.data.hotelVouchers; }
   addHotelVoucher(hv: any, entries: any[]) {
-    const voucherNo = `HV-${Date.now().toString().slice(-6)}`;
+    const voucherNo = this.generateNextVoucherNo(VoucherType.HOTEL);
     const accVoucher = this.addVoucher({
       voucher_no: voucherNo, date: hv.date, type: VoucherType.HOTEL, description: `Hotel: ${hv.hotel_name} / ${hv.pax_name}`,
       total_amount: hv.sale_price_pkr, currency: hv.currency, roe: hv.roe, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
@@ -280,7 +323,7 @@ export class Store {
 
   getTicketVouchers() { return this.data.ticketVouchers; }
   addTicketVoucher(tv: any, entries: any[]) {
-    const voucherNo = `TK-${Date.now().toString().slice(-6)}`;
+    const voucherNo = this.generateNextVoucherNo(VoucherType.TICKET);
     const accVoucher = this.addVoucher({
       voucher_no: voucherNo, date: tv.date, type: VoucherType.TICKET, description: `Ticket: ${tv.airline} / ${tv.pax_name} / ${tv.ticket_no}`,
       total_amount: tv.total_sale_pkr, currency: tv.currency, roe: tv.roe, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
@@ -305,7 +348,7 @@ export class Store {
 
   getVisaVouchers() { return this.data.visaVouchers; }
   addVisaVoucher(vv: any, entries: any[]) {
-    const voucherNo = `VS-${Date.now().toString().slice(-6)}`;
+    const voucherNo = this.generateNextVoucherNo(VoucherType.VISA);
     const accVoucher = this.addVoucher({
       voucher_no: voucherNo, date: vv.date, type: VoucherType.VISA, description: `Visa: ${vv.country} / ${vv.pax_name} / ${vv.passport_no}`,
       total_amount: vv.sale_price_pkr, currency: vv.currency, roe: vv.roe, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
@@ -330,7 +373,7 @@ export class Store {
 
   getTransportVouchers() { return this.data.transportVouchers; }
   addTransportVoucher(tv: any, entries: any[]) {
-    const voucherNo = `TV-${Date.now().toString().slice(-6)}`;
+    const voucherNo = this.generateNextVoucherNo(VoucherType.TRANSPORT);
     const accVoucher = this.addVoucher({
       voucher_no: voucherNo, date: tv.date, type: VoucherType.TRANSPORT, description: `Transport: ${tv.route}`,
       total_amount: tv.total_amount, currency: tv.currency, roe: tv.roe, entries: entries.map(e => ({ ...e, id: `e-${Math.random()}` }))
