@@ -1,10 +1,22 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize Gemini with the required environment key
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy-load the AI client to prevent crashes if process.env isn't ready at import time
+let aiInstance: GoogleGenAI | null = null;
+
+function getAIClient() {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return null;
+  
+  if (!aiInstance) {
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+}
 
 export async function getFinancialInsights(summary: string) {
-  if (!process.env.API_KEY) {
+  const ai = getAIClient();
+  
+  if (!ai) {
     return "AI Insights are unavailable: API Key not configured.";
   }
   
