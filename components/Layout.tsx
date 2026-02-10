@@ -1,5 +1,7 @@
 
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { db } from '../store';
 import { 
   LayoutDashboard, 
   Users, 
@@ -7,21 +9,21 @@ import {
   BookOpen, 
   FileText, 
   BarChart3, 
-  PlusCircle,
-  LogOut,
   Hotel,
-  Ticket,
   Bus,
   Menu,
   X,
-  Plus,
-  Sun,
   Moon,
   Minimize2,
   Maximize2,
   ShieldAlert,
   Plane,
-  FileBadge
+  FileBadge,
+  LogOut,
+  User,
+  Settings,
+  Ticket,
+  RefreshCw
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -32,6 +34,8 @@ interface LayoutProps {
   setTheme: (theme: 'light' | 'dark') => void;
   isCompact: boolean;
   setIsCompact: (compact: boolean) => void;
+  userEmail?: string;
+  isSyncing?: boolean;
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
@@ -41,9 +45,12 @@ const Layout: React.FC<LayoutProps> = ({
   theme,
   setTheme,
   isCompact,
-  setIsCompact
+  setIsCompact,
+  userEmail,
+  isSyncing
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const settings = db.getSettings();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -57,12 +64,17 @@ const Layout: React.FC<LayoutProps> = ({
     { id: 'vendors', label: 'Vendors', icon: <Truck size={20} /> },
     { id: 'accounts', label: 'Chart of Accounts', icon: <BookOpen size={20} /> },
     { id: 'reports', label: 'Reports & AI', icon: <BarChart3 size={20} /> },
+    { id: 'cpanel', label: 'Control Panel', icon: <Settings size={20} /> },
     { id: 'security', label: 'Security & Audit', icon: <ShieldAlert size={20} /> },
   ];
 
   const handleNavClick = (id: string) => {
     setActivePage(id);
     setIsSidebarOpen(false);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
   };
 
   return (
@@ -81,15 +93,28 @@ const Layout: React.FC<LayoutProps> = ({
       `}>
         <div className="p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-emerald-600 p-2 rounded-xl shadow-lg shadow-emerald-900/20">
-              <Plane size={24} className="text-white" />
-            </div>
-            <span className="font-black text-xl tracking-tight uppercase">TravelLedger</span>
+            {settings.logoBase64 ? (
+               <div className="w-10 h-10 bg-white rounded-xl overflow-hidden shadow-lg border border-white/10">
+                 <img src={settings.logoBase64} className="w-full h-full object-contain p-1" alt="Logo" />
+               </div>
+            ) : (
+               <div className="bg-emerald-600 p-2 rounded-xl shadow-lg shadow-emerald-900/20">
+                 <Plane size={24} className="text-white" />
+               </div>
+            )}
+            <span className="font-black text-lg tracking-tight uppercase">{settings.appName}</span>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 hover:bg-slate-800 rounded-lg">
             <X size={20} />
           </button>
         </div>
+
+        {isSyncing && (
+          <div className="mx-6 mb-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2">
+             <RefreshCw size={12} className="text-emerald-400 animate-spin" />
+             <span className="text-[9px] font-black uppercase text-emerald-400">Syncing Database...</span>
+          </div>
+        )}
 
         <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto scrollbar-hide">
           {navItems.map((item) => (
@@ -108,16 +133,31 @@ const Layout: React.FC<LayoutProps> = ({
               }`}
             >
               {item.icon}
-              <span className="text-sm uppercase tracking-wider text-[11px] font-black">{item.label}</span>
+              <span className="text-sm uppercase tracking-wider text-[10px] font-black">{item.label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="p-6 border-t border-slate-800">
-          <button className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:text-rose-400 transition-colors font-bold text-sm uppercase tracking-widest text-[11px]">
-            <LogOut size={20} />
-            <span>Sign Out</span>
+        <div className="p-4 bg-slate-950/50 mt-auto">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5 mb-3">
+            <div className="bg-emerald-500/20 p-2 rounded-xl text-emerald-400">
+              <User size={16} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Operator</p>
+              <p className="text-[10px] font-bold text-white truncate">{userEmail}</p>
+            </div>
+          </div>
+          <button 
+            onClick={handleSignOut}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+          >
+            <LogOut size={14} /> Log Out
           </button>
+        </div>
+
+        <div className="p-6 border-t border-slate-800 text-center">
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{settings.appName} Core v4.1</p>
         </div>
       </aside>
 
@@ -131,7 +171,7 @@ const Layout: React.FC<LayoutProps> = ({
               <Menu size={24} />
             </button>
             <h1 className="text-lg lg:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight truncate max-w-[150px] sm:max-w-none">
-              {activePage.split('-').join(' ')}
+              {activePage === 'cpanel' ? 'Control Panel' : activePage.split('-').join(' ')}
             </h1>
           </div>
 

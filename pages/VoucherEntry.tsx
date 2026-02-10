@@ -21,7 +21,8 @@ const VoucherEntry: React.FC<VoucherEntryProps> = ({ onComplete, initialData, ed
   const isEdit = !!editingData;
   const accounts = db.getAccounts();
   const settings = db.getSettings();
-  const parties = [...db.getCustomers(false), ...db.getVendors(false)];
+  // Fixed: getCustomers and getVendors do not accept arguments
+  const parties = [...db.getCustomers(), ...db.getVendors()];
 
   const [type, setType] = useState<VoucherType>(VoucherType.CASH);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);

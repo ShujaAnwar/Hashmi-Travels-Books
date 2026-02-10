@@ -10,7 +10,7 @@ const TicketVoucherList: React.FC<{
   onClone: (id: string) => void
 }> = ({ isCompact, onNew, onEdit, onClone }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [fromDate, setFromDate] = useState('2026-01-01');
+  const [fromDate, setFromDate] = useState('2024-01-01');
   const [toDate, setToDate] = useState('2026-12-31');
 
   const tickets = db.getTicketVouchers();
@@ -24,7 +24,9 @@ const TicketVoucherList: React.FC<{
         t.airline.toLowerCase().includes(searchTerm.toLowerCase());
       
       const date = new Date(t.date);
-      const matchesDate = date >= new Date(fromDate) && date <= new Date(toDate);
+      const from = new Date(fromDate);
+      const to = new Date(toDate);
+      const matchesDate = date >= from && date <= to;
 
       return matchesSearch && matchesDate;
     }).reverse();

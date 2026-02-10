@@ -8,9 +8,10 @@ import {
   DollarSign, 
   CreditCard, 
   TrendingUp, 
-  Activity,
+  Activity, 
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  Ticket
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -115,32 +116,41 @@ const Dashboard: React.FC<DashboardProps> = ({ isCompact }) => {
           </div>
         </div>
 
-        {/* Recent Activity */}
+        {/* Recent Activity with Scrollbar */}
         <div className={`bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 ${isCompact ? 'p-5' : 'p-6 sm:p-8'}`}>
           <h3 className={`${isCompact ? 'text-sm' : 'text-base sm:text-lg'} font-black text-slate-900 dark:text-white uppercase tracking-tight ${isCompact ? 'mb-4' : 'mb-8'}`}>Recent Activity</h3>
-          <div className={`${isCompact ? 'space-y-2' : 'space-y-4'}`}>
-            {db.getVouchers().slice(-10).reverse().map((v) => (
-              <div key={v.id} className={`flex items-center justify-between transition-all border border-transparent hover:border-slate-100 dark:hover:border-slate-800 group rounded-xl ${isCompact ? 'p-2 hover:bg-slate-50 dark:hover:bg-slate-800/30' : 'p-4 hover:bg-slate-50 dark:hover:bg-slate-800/30'}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`rounded-xl transition-transform ${isCompact ? 'p-2' : 'p-2.5'} ${v.type === VoucherType.TRANSPORT ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : v.type === VoucherType.RECEIPT ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
-                    <CreditCard size={isCompact ? 14 : 16} />
+          
+          <div className={`${isCompact ? 'max-h-[350px]' : 'max-h-[450px]'} overflow-y-auto pr-2 custom-scrollbar`}>
+            <div className={`${isCompact ? 'space-y-2' : 'space-y-4'}`}>
+              {db.getVouchers().slice(-30).reverse().map((v) => (
+                <div key={v.id} className={`flex items-center justify-between transition-all border border-transparent hover:border-slate-100 dark:hover:border-slate-800 group rounded-xl ${isCompact ? 'p-2 hover:bg-slate-50 dark:hover:bg-slate-800/30' : 'p-4 hover:bg-slate-50 dark:hover:bg-slate-800/30'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`rounded-xl transition-transform ${isCompact ? 'p-2' : 'p-2.5'} ${
+                      v.type === VoucherType.RECEIPT ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400' :
+                      v.type === VoucherType.TRANSPORT ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 
+                      v.type === VoucherType.TICKET ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
+                      'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}>
+                      {v.type === VoucherType.RECEIPT ? <Ticket size={isCompact ? 14 : 16} /> : <CreditCard size={isCompact ? 14 : 16} />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`font-black text-slate-900 dark:text-slate-100 tracking-tight truncate ${isCompact ? 'text-xs' : 'text-sm'}`}>{v.voucher_no}</p>
+                      <p className={`font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ${isCompact ? 'text-[8px]' : 'text-[10px]'}`}>{v.type}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className={`font-black text-slate-900 dark:text-slate-100 tracking-tight ${isCompact ? 'text-xs' : 'text-sm'}`}>{v.voucher_no}</p>
-                    <p className={`font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ${isCompact ? 'text-[8px]' : 'text-[10px]'}`}>{v.type}</p>
+                  <div className="text-right shrink-0">
+                     <p className={`font-black text-slate-900 dark:text-slate-100 ${isCompact ? 'text-xs' : 'text-sm'}`}>Rs. {v.total_amount.toLocaleString()}</p>
+                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{v.date}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                   <p className={`font-black text-slate-900 dark:text-slate-100 ${isCompact ? 'text-xs' : 'text-sm'}`}>Rs. {v.total_amount.toLocaleString()}</p>
+              ))}
+              {db.getVouchers().length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 opacity-20">
+                   <Activity size={32} className="mb-2 dark:text-white"/>
+                   <p className="text-[10px] font-black uppercase tracking-widest dark:text-white">Idle Ledger</p>
                 </div>
-              </div>
-            ))}
-            {db.getVouchers().length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 opacity-20">
-                 <Activity size={32} className="mb-2 dark:text-white"/>
-                 <p className="text-[10px] font-black uppercase tracking-widest dark:text-white">Idle Ledger</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

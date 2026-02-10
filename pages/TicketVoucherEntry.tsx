@@ -13,8 +13,9 @@ interface TicketVoucherEntryProps {
 
 const TicketVoucherEntry: React.FC<TicketVoucherEntryProps> = ({ onComplete, initialData, editingData, isCompact }) => {
   const isEdit = !!editingData;
-  const customers = db.getCustomers(false);
-  const vendors = db.getVendors(false);
+  // Fixed: getCustomers and getVendors do not accept arguments
+  const customers = db.getCustomers();
+  const vendors = db.getVendors();
   const accounts = db.getAccounts();
 
   const [formData, setFormData] = useState({
@@ -104,6 +105,7 @@ const TicketVoucherEntry: React.FC<TicketVoucherEntryProps> = ({ onComplete, ini
       roe: formData.roe
     };
 
+    // Fixed: calling updateTicketVoucher and addTicketVoucher which are now implemented in Store
     if (isEdit) db.updateTicketVoucher(editingData!.id, payload, entries);
     else db.addTicketVoucher(payload, entries);
 

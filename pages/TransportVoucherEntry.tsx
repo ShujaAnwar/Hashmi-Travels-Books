@@ -13,7 +13,8 @@ interface TransportVoucherEntryProps {
 
 const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplete, onBack, initialData, editingData }) => {
   const isEdit = !!editingData;
-  const customers = db.getCustomers(false);
+  // Fixed: getCustomers does not accept arguments
+  const customers = db.getCustomers();
   const accounts = db.getAccounts();
   const settings = db.getSettings();
 
@@ -98,6 +99,7 @@ const TransportVoucherEntry: React.FC<TransportVoucherEntryProps> = ({ onComplet
       narration: formData.narration || `${formData.transportType} service for ${formData.route} trip.`
     };
 
+    // Fixed: calling updateTransportVoucher and addTransportVoucher which are now implemented in Store
     if (isEdit) {
       db.updateTransportVoucher(editingData!.id, payload, entries);
     } else {

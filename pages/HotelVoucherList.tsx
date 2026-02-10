@@ -10,8 +10,9 @@ const HotelVoucherList: React.FC<{
   onClone: (id: string) => void,
   onEdit: (id: string) => void
 }> = ({ isCompact, onNew, onView, onClone, onEdit }) => {
-  const [fromDate, setFromDate] = useState('2026-02-01');
-  const [toDate, setToDate] = useState('2026-12-31');
+  // Set fromDate to a much earlier default to catch all existing DB records
+  const [fromDate, setFromDate] = useState('2020-01-01');
+  const [toDate, setToDate] = useState('2030-12-31');
   const [searchTerm, setSearchTerm] = useState('');
 
   const hotelVouchers = db.getHotelVouchers();
@@ -19,16 +20,14 @@ const HotelVoucherList: React.FC<{
   const filteredVouchers = useMemo(() => {
     return hotelVouchers.filter(v => {
       const matchesSearch = 
-        v.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.pax_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.hotel_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.pax_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.hotel_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (v.city && v.city.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (v.country && v.country.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      const date = new Date(v.date);
-      const from = new Date(fromDate);
-      const to = new Date(toDate);
-      const matchesDate = date >= from && date <= to;
+      // Use string comparison for ISO dates (YYYY-MM-DD) which is more reliable than new Date()
+      const matchesDate = v.date >= fromDate && v.date <= toDate;
 
       return matchesSearch && matchesDate;
     }).reverse();
@@ -46,7 +45,7 @@ const HotelVoucherList: React.FC<{
               <input 
                 type="text" 
                 placeholder="Passenger, Hotel, City or Country..." 
-                className={`w-full pl-11 pr-4 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-emerald-500 transition-all font-medium dark:text-white ${isCompact ? 'py-1.5 text-xs' : 'py-2.5 text-sm'}`}
+                className={`w-full pl-11 pr-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-emerald-500 transition-all font-medium dark:text-white ${isCompact ? 'py-1.5 text-xs' : 'py-2.5 text-sm'}`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -55,11 +54,11 @@ const HotelVoucherList: React.FC<{
           <div className="grid grid-cols-2 sm:flex gap-3">
             <div className="flex-1 sm:w-40">
               <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 ml-1">From</label>
-              <input type="date" className={`w-full px-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white ${isCompact ? 'py-1.5 text-[10px]' : 'py-2.5 text-xs'}`} value={fromDate} onChange={e => setFromDate(e.target.value)} />
+              <input type="date" className={`w-full px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white ${isCompact ? 'py-1.5 text-[10px]' : 'py-2.5 text-xs'}`} value={fromDate} onChange={e => setFromDate(e.target.value)} />
             </div>
             <div className="flex-1 sm:w-40">
               <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5 ml-1">To</label>
-              <input type="date" className={`w-full px-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white ${isCompact ? 'py-1.5 text-[10px]' : 'py-2.5 text-xs'}`} value={toDate} onChange={e => setToDate(e.target.value)} />
+              <input type="date" className={`w-full px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white ${isCompact ? 'py-1.5 text-[10px]' : 'py-2.5 text-xs'}`} value={toDate} onChange={e => setToDate(e.target.value)} />
             </div>
           </div>
           <button className={`bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-slate-200 transition-all ${isCompact ? 'px-4 py-2' : 'px-6 py-3.5'}`}>
@@ -135,6 +134,13 @@ const HotelVoucherList: React.FC<{
                   </tr>
                 );
               })}
+              {filteredVouchers.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-24 text-center">
+                    <p className="font-black uppercase tracking-[0.2em] opacity-30">No Hotel Records Found</p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

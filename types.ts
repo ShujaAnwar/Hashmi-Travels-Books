@@ -11,6 +11,25 @@ export interface User {
 export type OpeningBalanceType = 'Receivable' | 'Payable' | 'Advance';
 export type Currency = 'PKR' | 'SAR' | 'USD';
 
+export interface AppSettings {
+  appName: string;
+  corporateName: string;
+  tagline: string;
+  logoBase64?: string;
+  address: string;
+  phone: string;
+  cell: string;
+  email: string;
+  website: string;
+  defaultROE: number;
+  bankName: string;
+  bankAccountTitle: string;
+  bankIBAN: string;
+  lastBackupDate?: string;
+  cloudSyncEnabled?: boolean;
+  lastCloudSync?: string;
+}
+
 export interface AuditLog {
   id: string;
   record_id: string;

@@ -12,7 +12,7 @@ const VoucherList: React.FC<{
   onPrint: (id: string) => void
 }> = ({ isCompact, onNew, onEdit, onClone, onPrint }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<VoucherType | 'ALL'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<VoucherType | 'ALL' | 'JOURNAL_ONLY'>('JOURNAL_ONLY');
 
   const vouchers = db.getVouchers();
 
@@ -22,7 +22,13 @@ const VoucherList: React.FC<{
         v.voucher_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.description.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesType = typeFilter === 'ALL' || v.type === typeFilter;
+      let matchesType = true;
+      if (typeFilter === 'JOURNAL_ONLY') {
+        // Only show manual Cash/Bank/Journal vouchers, hide specialized ones like HOTEL/TICKET
+        matchesType = [VoucherType.CASH, VoucherType.BANK, VoucherType.JOURNAL].includes(v.type);
+      } else if (typeFilter !== 'ALL') {
+        matchesType = v.type === typeFilter;
+      }
 
       return matchesSearch && matchesType;
     }).reverse();
@@ -47,8 +53,11 @@ const VoucherList: React.FC<{
              onChange={e => setTypeFilter(e.target.value as any)}
              className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 font-black text-[10px] uppercase tracking-widest dark:text-white focus:ring-emerald-500 ${isCompact ? 'py-1.5' : 'py-2.5'}`}
            >
-              <option value="ALL">All Vouchers</option>
-              {Object.values(VoucherType).map(t => <option key={t} value={t}>{t}</option>)}
+              <option value="JOURNAL_ONLY">Manual Vouchers</option>
+              <option value="ALL">All System Activity</option>
+              <option value={VoucherType.CASH}>Cash Only</option>
+              <option value={VoucherType.BANK}>Bank Only</option>
+              <option value={VoucherType.JOURNAL}>Journal Only</option>
            </select>
         </div>
         <button 

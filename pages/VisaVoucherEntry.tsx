@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../store';
 import { AccountType, VisaVoucher, VisaStatus, Currency } from '../types';
-import { Save, FileBadge, User, Globe, Calculator, AlertTriangle, ArrowLeft, TrendingUp, Landmark } from 'lucide-react';
+import { Save, FileBadge, User, Globe, Calculator, AlertTriangle, ArrowLeft, TrendingUp, Landmark, RefreshCw } from 'lucide-react';
 
 interface VisaVoucherEntryProps {
   onComplete: () => void;
@@ -13,9 +13,10 @@ interface VisaVoucherEntryProps {
 
 const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initialData, editingData, isCompact }) => {
   const isEdit = !!editingData;
-  const customers = db.getCustomers(false);
-  const vendors = db.getVendors(false);
+  const customers = db.getCustomers();
+  const vendors = db.getVendors();
   const accounts = db.getAccounts();
+  const settings = db.getSettings();
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -71,7 +72,7 @@ const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initial
     const incomeAcc = accounts.find(a => a.type === AccountType.INCOME);
 
     if (!receivableAcc || !payableAcc || !incomeAcc) {
-      alert("Accounting Chart incomplete.");
+      alert("Accounting Chart incomplete. Ensure Receivable, Payable, and Income accounts exist.");
       return;
     }
 
@@ -242,7 +243,7 @@ const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initial
                        </div>
                     </div>
                     <div>
-                       <p className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-1">Service Profit Margin</p>
+                       <p className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-2">Visa Case Profit</p>
                        <h3 className="text-5xl font-black text-white">Rs. {profit.toLocaleString()}</h3>
                     </div>
                  </div>
@@ -251,7 +252,7 @@ const VisaVoucherEntry: React.FC<VisaVoucherEntryProps> = ({ onComplete, initial
                    onClick={handleSave}
                    className="w-full bg-purple-600 hover:bg-purple-700 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 relative z-10"
                  >
-                    <Save size={20} /> {isEdit ? 'Update Case' : 'Confirm & Open Case'}
+                    <Save size={20} /> {isEdit ? 'Save Changes' : 'Confirm & Post Visa'}
                  </button>
               </section>
            </div>

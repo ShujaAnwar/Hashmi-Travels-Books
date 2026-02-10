@@ -47,8 +47,9 @@ const HOTEL_OPTIONS = [
 
 const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initialData, editingData, isCompact }) => {
   const isEdit = !!editingData;
-  const customers = db.getCustomers(false);
-  const vendors = db.getVendors(false);
+  // Fixed: getCustomers and getVendors do not accept arguments
+  const customers = db.getCustomers();
+  const vendors = db.getVendors();
   const accounts = db.getAccounts();
   const settings = db.getSettings();
 
@@ -166,7 +167,7 @@ const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initi
       confirmation_no: formData.confirmationNo, 
       option_date: formData.optionDate, 
       check_in: formData.checkIn, 
-      check_out: formData.checkOut, // FIXED: Changed from formData.check_out to formData.checkOut
+      check_out: formData.checkOut, 
       nights, 
       rooms: formData.rooms, 
       room_type: formData.roomType, 
@@ -184,6 +185,7 @@ const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initi
       profit
     };
 
+    // Correctly call the Hotel Voucher management methods implemented in the Store
     if (isEdit) db.updateHotelVoucher(editingData!.id, payload, entries);
     else db.addHotelVoucher(payload, entries);
     onComplete();

@@ -13,7 +13,11 @@ import {
   Lock,
   Clock,
   User,
-  Activity
+  Activity,
+  Cloud,
+  RefreshCw,
+  Server,
+  Code
 } from 'lucide-react';
 
 interface SecurityProps {
@@ -23,8 +27,11 @@ interface SecurityProps {
 const Security: React.FC<SecurityProps> = ({ isCompact }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [showSqlFix, setShowSqlFix] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const settings = db.getSettings();
   const auditLogs = db.getAuditLogs().filter(log => 
     log.module.toLowerCase().includes(searchTerm.toLowerCase()) ||
     log.remarks?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -42,6 +49,21 @@ const Security: React.FC<SecurityProps> = ({ isCompact }) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleCloudSync = async () => {
+    setSyncing(true);
+    const result = await db.syncToCloud();
+    setSyncing(false);
+    if (result.success) {
+      alert("Local data successfully synchronized to Hashmi Travels Books Cloud.");
+      setShowSqlFix(false);
+    } else {
+      if (result.error?.toString().includes("row-level security")) {
+        setShowSqlFix(true);
+      }
+      alert("Sync failed. Check database permissions (RLS).");
+    }
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,7 +99,7 @@ const Security: React.FC<SecurityProps> = ({ isCompact }) => {
          <div>
             <h3 className="text-sm font-black text-amber-900 dark:text-amber-400 uppercase tracking-widest">Disaster Recovery Protocol</h3>
             <p className="text-xs font-medium text-amber-700 dark:text-amber-500 mt-1 leading-relaxed">
-               All data is stored in your browser's local cache. Please download regular backups to prevent data loss in case of cache clearance or computer failure.
+               All data is stored in your browser's local cache. Please download regular backups or sync to the cloud to prevent data loss.
             </p>
          </div>
       </div>
@@ -85,22 +107,76 @@ const Security: React.FC<SecurityProps> = ({ isCompact }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Management Controls */}
         <div className="space-y-6">
+           {/* Supabase Panel */}
+           <div className={`bg-emerald-50 dark:bg-emerald-900/10 rounded-[2.5rem] shadow-sm border border-emerald-100 dark:border-emerald-900/30 ${isCompact ? 'p-6' : 'p-8'}`}>
+              <div className="flex items-center gap-3 mb-8">
+                 <div className="bg-emerald-600 p-2.5 rounded-xl text-white">
+                    <Cloud size={20} />
+                 </div>
+                 <div>
+                   <h4 className="text-sm font-black uppercase tracking-widest text-emerald-900 dark:text-emerald-400">Cloud Bridge</h4>
+                   <p className="text-[9px] font-bold text-emerald-600/60 uppercase">Supabase Integration Active</p>
+                 </div>
+              </div>
+
+              {showSqlFix && (
+                <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-2xl animate-in fade-in zoom-in">
+                   <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black text-[10px] uppercase tracking-widest mb-2">
+                      <AlertTriangle size={14} /> Permission Denied
+                   </div>
+                   <p className="text-[10px] font-medium text-slate-600 dark:text-slate-400 leading-relaxed mb-3">
+                      Your Supabase tables have "Row Level Security" enabled. You must disable it or add policies to allow public access.
+                   </p>
+                   <button 
+                     onClick={() => setShowSqlFix(!showSqlFix)}
+                     className="w-full py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+                   >
+                     <Code size={12} /> View Fix Script
+                   </button>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                 <button 
+                   onClick={handleCloudSync}
+                   disabled={syncing}
+                   className="w-full flex items-center justify-between p-5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-[1.5rem] transition-all group shadow-xl shadow-emerald-900/10"
+                 >
+                    <div className="text-left">
+                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Push to Supabase</p>
+                       <p className="text-sm font-black mt-0.5">{syncing ? 'Syncing...' : 'Live Cloud Sync'}</p>
+                    </div>
+                    <RefreshCw className={`transition-transform ${syncing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+                 </button>
+
+                 <div className="bg-white/50 dark:bg-slate-800/50 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">
+                       <span>Last Sync</span>
+                       <Server size={12} />
+                    </div>
+                    <p className="text-xs font-bold text-slate-500">
+                       {settings.lastCloudSync ? new Date(settings.lastCloudSync).toLocaleString() : 'Never'}
+                    </p>
+                 </div>
+              </div>
+           </div>
+
            <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-200 dark:border-slate-800 ${isCompact ? 'p-6' : 'p-8'}`}>
               <div className="flex items-center gap-3 mb-8">
                  <div className="bg-slate-100 dark:bg-slate-800 p-2.5 rounded-xl text-slate-900 dark:text-white">
                     <Database size={20} />
                  </div>
-                 <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Backup Engine</h4>
+                 <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Local Snapshots</h4>
               </div>
 
               <div className="space-y-4">
                  <button 
                    onClick={handleBackup}
-                   className="w-full flex items-center justify-between p-5 bg-slate-900 dark:bg-emerald-600 hover:opacity-90 text-white rounded-[1.5rem] transition-all group shadow-xl"
+                   className="w-full flex items-center justify-between p-5 bg-slate-900 dark:bg-slate-800 hover:opacity-90 text-white rounded-[1.5rem] transition-all group shadow-xl"
                  >
                     <div className="text-left">
-                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Generate Snapshot</p>
-                       <p className="text-sm font-black mt-0.5">Download Backup</p>
+                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Manual Backup</p>
+                       <p className="text-sm font-black mt-0.5">Download JSON</p>
                     </div>
                     <Download className="group-hover:translate-y-0.5 transition-transform" />
                  </button>
@@ -126,7 +202,7 @@ const Security: React.FC<SecurityProps> = ({ isCompact }) => {
            <div className={`bg-rose-50 dark:bg-rose-900/10 rounded-[2.5rem] border border-rose-100 dark:border-rose-900/30 ${isCompact ? 'p-6' : 'p-8'}`}>
               <div className="flex items-center gap-3 mb-6 text-rose-800 dark:text-rose-400">
                  <AlertTriangle size={20} />
-                 <h4 className="text-sm font-black uppercase tracking-widest">Zone of High Risk</h4>
+                 <h4 className="text-sm font-black uppercase tracking-widest">Danger Zone</h4>
               </div>
               <button 
                 onClick={handleReset}
@@ -134,9 +210,6 @@ const Security: React.FC<SecurityProps> = ({ isCompact }) => {
               >
                  <Trash2 size={16} /> Factory Data Reset
               </button>
-              <p className="text-[9px] font-bold text-rose-400 uppercase tracking-widest text-center mt-4 italic">
-                 Requires Administrative Authorization
-              </p>
            </div>
         </div>
 
@@ -170,10 +243,10 @@ const Security: React.FC<SecurityProps> = ({ isCompact }) => {
                  <table className="w-full text-left">
                     <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10">
                        <tr className="bg-slate-50 dark:bg-slate-800/50 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                          <th className="px-8 py-4">Event Timeline</th>
-                          <th className="px-6 py-4">Module Integration</th>
+                          <th className="px-8 py-4">Timeline</th>
+                          <th className="px-6 py-4">Module</th>
                           <th className="px-6 py-4">Operator</th>
-                          <th className="px-6 py-4">Description of Action</th>
+                          <th className="px-6 py-4">Description</th>
                        </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -184,45 +257,22 @@ const Security: React.FC<SecurityProps> = ({ isCompact }) => {
                                    <Clock size={14} className="text-slate-300" />
                                    <div className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                       {new Date(log.edited_at).toLocaleDateString()}
-                                      <span className="text-[10px] ml-1.5 opacity-50">{new Date(log.edited_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                    </div>
                                 </div>
                              </td>
                              <td className="px-6 py-5">
-                                <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${
-                                  log.module === 'Database' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                  log.module === 'Voucher' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
-                                  'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
-                                }`}>
+                                <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400">
                                    {log.module}
                                 </span>
                              </td>
                              <td className="px-6 py-5">
-                                <div className="flex items-center gap-2">
-                                   <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                                      <User size={12} />
-                                   </div>
-                                   <span className="text-xs font-black text-slate-800 dark:text-slate-200">{log.edited_by}</span>
-                                </div>
+                                <span className="text-xs font-black text-slate-800 dark:text-slate-200">{log.edited_by}</span>
                              </td>
                              <td className="px-6 py-5">
                                 <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{log.remarks}</p>
-                                {log.record_id !== 'system' && (
-                                   <p className="text-[9px] font-black text-indigo-500 dark:text-indigo-400 mt-1 uppercase opacity-0 group-hover:opacity-100 transition-opacity">ID: {log.record_id}</p>
-                                )}
                              </td>
                           </tr>
                        ))}
-                       {auditLogs.length === 0 && (
-                          <tr>
-                             <td colSpan={4} className="py-24 text-center">
-                                <div className="flex flex-col items-center opacity-10">
-                                   <Activity size={48} />
-                                   <p className="text-sm font-black uppercase mt-4">Safe State: No Logs Found</p>
-                                </div>
-                             </td>
-                          </tr>
-                       )}
                     </tbody>
                  </table>
               </div>
