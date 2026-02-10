@@ -1,16 +1,12 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-// Lazy-load the AI client to prevent crashes if process.env isn't ready at import time
-let aiInstance: GoogleGenAI | null = null;
-
+// Create a new instance right before making an API call to ensure it always uses the most up-to-date API key.
 function getAIClient() {
   const apiKey = process.env.API_KEY;
   if (!apiKey) return null;
   
-  if (!aiInstance) {
-    aiInstance = new GoogleGenAI({ apiKey });
-  }
-  return aiInstance;
+  return new GoogleGenAI({ apiKey });
 }
 
 export async function getFinancialInsights(summary: string) {
@@ -25,6 +21,7 @@ export async function getFinancialInsights(summary: string) {
       model: 'gemini-3-flash-preview',
       contents: `As an expert travel agency financial consultant, analyze the following trial balance and financial summary. Provide 3 actionable insights on how to improve cash flow or profitability. Keep it concise. Data: ${summary}`,
     });
+    // Correct access to .text property from GenerateContentResponse
     return response.text || "No insights generated.";
   } catch (error) {
     console.error("Gemini Error:", error);

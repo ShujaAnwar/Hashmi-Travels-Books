@@ -70,8 +70,9 @@ const PrintHotelVoucher: React.FC<PrintHotelVoucherProps> = ({ id, onBack }) => 
         </div>
 
         {/* Voucher ID */}
-        <div className="mb-10">
-          <p className="text-sm font-bold text-slate-900">Hotel Voucher: <span className="text-sky-700">{voucher.id}</span></p>
+        <div className="mb-10 flex justify-between items-end">
+          <p className="text-sm font-bold text-slate-900">Voucher Reference: <span className="text-sky-700">{voucher.id}</span></p>
+          <p className="text-xs font-bold text-slate-400">Issued On: {voucher.date}</p>
         </div>
 
         {/* Info Grid */}
@@ -80,12 +81,18 @@ const PrintHotelVoucher: React.FC<PrintHotelVoucherProps> = ({ id, onBack }) => 
           <div className="col-span-8">
             <div className="space-y-6">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Hotel Name</p>
-                <p className="text-lg font-black text-slate-900 uppercase">{voucher.hotel_name}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Hotel Property</p>
+                <p className="text-xl font-black text-slate-900 uppercase">{voucher.hotel_name}</p>
               </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">City</p>
-                <p className="text-sm font-bold text-slate-700 uppercase">{voucher.city || voucher.destination} {voucher.country}</p>
+              <div className="grid grid-cols-2">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">City / Destination</p>
+                  <p className="text-sm font-black text-slate-700 uppercase">{voucher.city || voucher.destination || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Country</p>
+                  <p className="text-sm font-black text-slate-700 uppercase">{voucher.country || '—'}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -98,14 +105,18 @@ const PrintHotelVoucher: React.FC<PrintHotelVoucherProps> = ({ id, onBack }) => 
 
           {/* Guest & Counts */}
           <div className="col-span-8 border-t border-slate-100 pt-8">
-            <div className="grid grid-cols-2">
+            <div className="grid grid-cols-3">
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lead Guest</p>
                 <p className="text-lg font-black text-slate-900 uppercase">{voucher.pax_name}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Room(s) / Night(s)</p>
-                <p className="text-lg font-black text-slate-900">{voucher.rooms} / {voucher.nights}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rooms Count</p>
+                <p className="text-lg font-black text-emerald-600">{voucher.rooms || 1} Rooms</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Nights</p>
+                <p className="text-lg font-black text-slate-900">{voucher.nights} Nights</p>
               </div>
             </div>
           </div>
@@ -122,29 +133,41 @@ const PrintHotelVoucher: React.FC<PrintHotelVoucherProps> = ({ id, onBack }) => 
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Rooms/Beds</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Room Type</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Meal</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Guest Name</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Adult(s)</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Rooms</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Configuration</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Meal Plan</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Adults</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">Children</th>
               </tr>
             </thead>
             <tbody className="bg-white">
               <tr className="border-b border-slate-50 last:border-0">
-                <td className="px-6 py-4 text-xs font-bold">{voucher.rooms}</td>
+                <td className="px-6 py-4 text-xs font-black">{voucher.rooms || 1}</td>
                 <td className="px-6 py-4 text-xs font-bold uppercase">{voucher.room_type || 'STANDARD'}</td>
                 <td className="px-6 py-4 text-xs font-bold uppercase">{voucher.meal || 'NONE'}</td>
-                <td className="px-6 py-4 text-xs font-bold uppercase">{voucher.pax_name}</td>
                 <td className="px-6 py-4 text-xs font-bold">{voucher.adults}</td>
-                <td className="px-6 py-4 text-xs font-bold">{voucher.children || ''}</td>
+                <td className="px-6 py-4 text-xs font-bold">{voucher.children || '0'}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
+        {/* Confirmation Info */}
+        <div className="mb-12 p-6 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+           <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Confirmation Status</p>
+              <p className="text-sm font-black text-emerald-600 uppercase tracking-tight">Definite Booking Confirmed</p>
+           </div>
+           {voucher.confirmation_no && (
+             <div className="text-right">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Hotel Confirmation #</p>
+                <p className="text-sm font-black text-slate-900 uppercase tracking-widest">{voucher.confirmation_no}</p>
+             </div>
+           )}
+        </div>
+
         {/* Policies */}
-        <div className="mt-16">
+        <div className="mt-8">
           <h4 className="text-xs font-black text-slate-900 uppercase mb-6 flex items-center gap-2">
             <span className="w-6 h-[2px] bg-sky-600"></span>
             Check-in/Check-out Timings & Policies
@@ -160,22 +183,14 @@ const PrintHotelVoucher: React.FC<PrintHotelVoucherProps> = ({ id, onBack }) => 
             </li>
             <li className="flex gap-3">
               <span className="text-sky-500 font-bold">•</span>
-              Note that reservation may be canceled automatically after 18:00 hours if hotel is not informed about the approximate time of late arrivals.
-            </li>
-            <li className="flex gap-3">
-              <span className="text-sky-500 font-bold">•</span>
-              The usual checkout time is at 12:00 hours however this might vary from hotel to hotel and with different destinations. Any late checkout may involve additional charges. Please check with the hotel reception in advance.
-            </li>
-            <li className="flex gap-3">
-              <span className="text-sky-500 font-bold">•</span>
-              For any specific queries related to a particular hotel, kindly reach out to local support team for further assistance.
+              The usual checkout time is at 12:00 hours however this might vary from hotel to hotel and with different destinations. Any late checkout may involve additional charges.
             </li>
           </ul>
         </div>
 
         {/* Footer Note */}
-        <div className="mt-20 pt-8 border-t border-slate-100 text-[10px] text-slate-400 font-medium italic">
-          <p>Booking Notes: : Check your Reservation details carefully and inform us immediately if you need any further clarification, please do not hesitate to contact us.</p>
+        <div className="mt-auto pt-8 border-t border-slate-100 text-[10px] text-slate-400 font-medium italic">
+          <p>Booking Notes: Please check your reservation details carefully and inform us immediately if you need any clarification. This is a computer generated document.</p>
         </div>
       </div>
     </div>

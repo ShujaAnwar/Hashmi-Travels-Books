@@ -20,6 +20,10 @@ import VendorList from './pages/VendorList';
 import AccountList from './pages/AccountList';
 import Security from './pages/Security';
 import PartyLedger from './pages/PartyLedger';
+import PrintHotelVoucher from './pages/PrintHotelVoucher';
+import PrintHotelInvoicePKR from './pages/PrintHotelInvoicePKR';
+import PrintHotelVoucherSAR from './pages/PrintHotelVoucherSAR';
+import PrintHotelInvoiceUSD from './pages/PrintHotelInvoiceUSD';
 import { db } from './store';
 
 const App: React.FC = () => {
@@ -35,6 +39,12 @@ const App: React.FC = () => {
   const [editingVoucherData, setEditingVoucherData] = useState<any>(null);
   const [clonedTransportData, setClonedTransportData] = useState<any>(null);
   const [editingTransportData, setEditingTransportData] = useState<any>(null);
+  
+  // Hotel Specific States
+  const [clonedHotelData, setClonedHotelData] = useState<any>(null);
+  const [editingHotelData, setEditingHotelData] = useState<any>(null);
+  const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
+  const [hotelPrintVariant, setHotelPrintVariant] = useState<'PKR' | 'SAR' | 'USD' | 'BOOKING' | null>(null);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('ui-theme') as any) || 'light');
   const [isCompact, setIsCompact] = useState<boolean>(() => localStorage.getItem('ui-compact') === 'true');
@@ -63,6 +73,17 @@ const App: React.FC = () => {
       return <PartyLedger isCompact={isCompact} partyId={selectedLedgerId} partyType="Vendor" onBack={() => setActivePage('vendors')} onPrint={() => {}} />;
     }
 
+    // Hotel View Routing
+    if (activePage === 'hotel-view' && selectedHotelId) {
+      switch(hotelPrintVariant) {
+        case 'BOOKING': return <PrintHotelVoucher id={selectedHotelId} onBack={() => setActivePage('hotel-vouchers')} />;
+        case 'PKR': return <PrintHotelInvoicePKR id={selectedHotelId} onBack={() => setActivePage('hotel-vouchers')} />;
+        case 'SAR': return <PrintHotelVoucherSAR id={selectedHotelId} onBack={() => setActivePage('hotel-vouchers')} />;
+        case 'USD': return <PrintHotelInvoiceUSD id={selectedHotelId} onBack={() => setActivePage('hotel-vouchers')} />;
+        default: return <PrintHotelVoucher id={selectedHotelId} onBack={() => setActivePage('hotel-vouchers')} />;
+      }
+    }
+
     switch (activePage) {
       case 'dashboard': return <Dashboard isCompact={isCompact} />;
       
@@ -79,8 +100,14 @@ const App: React.FC = () => {
       case 'visa-new': return <VisaVoucherEntry isCompact={isCompact} initialData={clonedVisaData} editingData={editingVisaData} onComplete={() => setActivePage('visas')} />;
       
       // Hotels
-      case 'hotel-vouchers': return <HotelVoucherList isCompact={isCompact} onNew={() => setActivePage('hotel-voucher-new')} onView={() => {}} onClone={() => {}} onEdit={() => {}} />;
-      case 'hotel-voucher-new': return <HotelVoucherEntry isCompact={isCompact} onComplete={() => setActivePage('hotel-vouchers')} />;
+      case 'hotel-vouchers': return <HotelVoucherList 
+          isCompact={isCompact} 
+          onNew={() => { setClonedHotelData(null); setEditingHotelData(null); setActivePage('hotel-voucher-new'); }} 
+          onView={(id, variant) => { setSelectedHotelId(id); setHotelPrintVariant(variant); setActivePage('hotel-view'); }} 
+          onClone={(id) => { const v = db.getHotelVouchers().find(x => x.id === id); setClonedHotelData(v); setEditingHotelData(null); setActivePage('hotel-voucher-new'); }} 
+          onEdit={(id) => { const v = db.getHotelVouchers().find(x => x.id === id); setEditingHotelData(v); setClonedHotelData(null); setActivePage('hotel-voucher-new'); }} 
+        />;
+      case 'hotel-voucher-new': return <HotelVoucherEntry isCompact={isCompact} onComplete={() => setActivePage('hotel-vouchers')} initialData={clonedHotelData} editingData={editingHotelData} />;
       
       // Transport
       case 'transport-vouchers': return <TransportVoucherList onNew={() => { setClonedTransportData(null); setEditingTransportData(null); setActivePage('transport-voucher-new'); }} onEdit={(id) => { const v = db.getTransportVouchers().find(x => x.id === id); setEditingTransportData(v); setActivePage('transport-voucher-new'); }} onClone={(id) => { const v = db.getTransportVouchers().find(x => x.id === id); setClonedTransportData(v); setActivePage('transport-voucher-new'); }} onPrint={() => {}} />;
