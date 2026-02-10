@@ -20,12 +20,26 @@ const PrintHotelVoucher: React.FC<PrintHotelVoucherProps> = ({ id, onBack }) => 
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-GB', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+    if (!dateStr || dateStr === 'Invalid Date') return '—';
+    try {
+      // Manually parse YYYY-MM-DD to avoid browser-specific bugs with new Date(str)
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      
+      const d = new Date(year, month, day);
+      return d.toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
   };
 
   return (

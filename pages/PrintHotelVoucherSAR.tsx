@@ -9,6 +9,22 @@ const PrintHotelVoucherSAR: React.FC<{ id: string, onBack: () => void }> = ({ id
 
   const customer = db.getCustomer(v.customer_id);
 
+  const formatDate = (dateStr: string) => {
+    if (!dateStr || dateStr === 'Invalid Date') return '—';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 p-8 no-print flex flex-col items-center">
       <div className="w-full max-w-6xl flex justify-between items-center mb-6">
@@ -43,7 +59,7 @@ const PrintHotelVoucherSAR: React.FC<{ id: string, onBack: () => void }> = ({ id
           </div>
           <div className="flex gap-2 justify-end">
             <span className="font-black text-slate-400 uppercase tracking-widest">Date:</span>
-            <span className="font-bold text-slate-900">{v.date}</span>
+            <span className="font-bold text-slate-900">{formatDate(v.date)}</span>
           </div>
           <div className="flex gap-2">
             <span className="font-black text-slate-400 uppercase tracking-widest">Country:</span>
@@ -62,7 +78,7 @@ const PrintHotelVoucherSAR: React.FC<{ id: string, onBack: () => void }> = ({ id
           </div>
           <div className="flex gap-2">
             <span className="font-black text-slate-400 uppercase tracking-widest">Option Date:</span>
-            <span className="font-bold text-rose-600">{v.option_date || 'Firm Booking'}</span>
+            <span className="font-bold text-rose-600">{formatDate(v.option_date || '') || 'Firm Booking'}</span>
           </div>
         </div>
 
@@ -84,8 +100,8 @@ const PrintHotelVoucherSAR: React.FC<{ id: string, onBack: () => void }> = ({ id
               <td className="border border-slate-200 p-3 text-center uppercase font-bold">{v.hotel_name}</td>
               <td className="border border-slate-200 p-3 text-center uppercase">{v.room_type}</td>
               <td className="border border-slate-200 p-3 text-center uppercase">{v.meal}</td>
-              <td className="border border-slate-200 p-3 text-center font-bold">{v.check_in}</td>
-              <td className="border border-slate-200 p-3 text-center font-bold">{v.check_out}</td>
+              <td className="border border-slate-200 p-3 text-center font-bold">{formatDate(v.check_in)}</td>
+              <td className="border border-slate-200 p-3 text-center font-bold">{formatDate(v.check_out)}</td>
               <td className="border border-slate-200 p-3 text-center font-black text-sky-700">{v.rooms}/{v.nights}</td>
               <td className="border border-slate-200 p-3 text-right font-bold">{v.sale_rate_sar?.toLocaleString()}</td>
               <td className="border border-slate-200 p-3 text-right font-black bg-slate-50 text-slate-900">{v.sale_total_sar?.toLocaleString()}</td>

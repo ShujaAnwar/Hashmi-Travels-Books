@@ -9,6 +9,22 @@ const PrintHotelInvoiceUSD: React.FC<{ id: string, onBack: () => void }> = ({ id
 
   const customer = db.getCustomer(v.customer_id);
 
+  const formatDate = (dateStr: string) => {
+    if (!dateStr || dateStr === 'Invalid Date') return '—';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 p-8 no-print flex flex-col items-center">
       <div className="w-full max-w-6xl flex justify-between items-center mb-6">
@@ -28,7 +44,7 @@ const PrintHotelInvoiceUSD: React.FC<{ id: string, onBack: () => void }> = ({ id
            <div className="text-right">
               <h2 className="text-4xl font-black text-slate-900 opacity-10 absolute right-12 top-12">INVOICE</h2>
               <p className="text-sm font-bold text-slate-500">Invoice Number: <span className="text-slate-900">#USD-{v.id}</span></p>
-              <p className="text-sm font-bold text-slate-500">Invoice Date: <span className="text-slate-900">{v.date}</span></p>
+              <p className="text-sm font-bold text-slate-500">Invoice Date: <span className="text-slate-900">{formatDate(v.date)}</span></p>
            </div>
         </div>
 
@@ -61,7 +77,7 @@ const PrintHotelInvoiceUSD: React.FC<{ id: string, onBack: () => void }> = ({ id
                 <p className="font-bold text-slate-900 text-base uppercase mb-1">{v.hotel_name}</p>
                 <div className="text-xs text-slate-500 space-y-1">
                   <p><span className="font-bold uppercase">Room:</span> {v.room_type} | <span className="font-bold uppercase">Meal:</span> {v.meal}</p>
-                  <p><span className="font-bold uppercase">Checkin:</span> {v.check_in} <span className="mx-2">→</span> <span className="font-bold uppercase">Checkout:</span> {v.check_out}</p>
+                  <p><span className="font-bold uppercase">Checkin:</span> {formatDate(v.check_in)} <span className="mx-2">→</span> <span className="font-bold uppercase">Checkout:</span> {formatDate(v.check_out)}</p>
                   <p><span className="font-bold uppercase">Pax:</span> {v.adults} Adults, {v.children} Children</p>
                 </div>
               </td>

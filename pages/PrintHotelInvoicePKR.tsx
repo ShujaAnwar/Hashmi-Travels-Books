@@ -10,6 +10,22 @@ const PrintHotelInvoicePKR: React.FC<{ id: string, onBack: () => void }> = ({ id
 
   const customer = db.getCustomer(v.customer_id);
 
+  const formatDate = (dateStr: string) => {
+    if (!dateStr || dateStr === 'Invalid Date') return '—';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 p-8 no-print flex flex-col items-center">
       <div className="w-full max-w-6xl flex justify-between items-center mb-6">
@@ -53,8 +69,8 @@ const PrintHotelInvoicePKR: React.FC<{ id: string, onBack: () => void }> = ({ id
           <tbody className="text-[11px] font-bold">
             <tr>
               <td className="border border-slate-200 p-3 text-center bg-slate-50 uppercase">{customer?.name}</td>
-              <td className="border border-slate-200 p-3 text-center">{v.date}</td>
-              <td className="border border-slate-200 p-3 text-center">{v.option_date || 'N/A'}</td>
+              <td className="border border-slate-200 p-3 text-center">{formatDate(v.date)}</td>
+              <td className="border border-slate-200 p-3 text-center">{formatDate(v.option_date || '')}</td>
               <td className="border border-slate-200 p-3 text-center uppercase">{v.country || v.confirmation_no || ''}</td>
             </tr>
           </tbody>
@@ -80,7 +96,7 @@ const PrintHotelInvoicePKR: React.FC<{ id: string, onBack: () => void }> = ({ id
               <td className="border border-slate-200 p-3 text-center uppercase">{v.meal}</td>
               <td className="border border-slate-200 p-3 text-center uppercase">{v.city || v.destination}</td>
               <td className="border border-slate-200 p-3 text-center">
-                 {v.check_in}<br/>{v.check_out}<br/>
+                 {formatDate(v.check_in)}<br/>{formatDate(v.check_out)}<br/>
                  <span className="font-black text-[9px] text-sky-700">({v.nights} Nights / {v.rooms} Rooms)</span>
               </td>
               <td className="border border-slate-200 p-3 text-center font-black bg-slate-50 text-slate-900">{v.sale_price_pkr.toLocaleString()}</td>

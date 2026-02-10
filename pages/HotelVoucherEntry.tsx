@@ -11,6 +11,40 @@ interface HotelVoucherEntryProps {
   isCompact?: boolean;
 }
 
+const HOTEL_OPTIONS = [
+  // MAKKAH 5-STAR
+  "Abraj Al Bait – Fairmont Makkah", "Abraj Al Bait – Raffles Makkah", "Abraj Al Bait – Swissôtel Makkah", 
+  "Abraj Al Bait – Swissôtel Al Maqam", "Abraj Al Bait – Pullman Zamzam", "Dar Al Tawhid InterContinental", 
+  "Makkah Clock Royal Tower – Fairmont", "Jabal Omar Hyatt Regency", "Jabal Omar Conrad Makkah", 
+  "Jabal Omar DoubleTree by Hilton", "Jabal Omar Marriott", "Jabal Omar Address Makkah", 
+  "Hilton Suites Makkah", "Makkah Hilton Hotel", "Anjum Hotel Makkah", "Al Ghufran Safwah Hotel", 
+  "Safwah Royale Orchid", "Conrad Jabal Omar", "Address Jabal Omar", "Sheraton Makkah Jabal Al Kaaba", 
+  "Le Méridien Towers Makkah",
+  // MAKKAH 4-STAR
+  "Emaar Grand Hotel", "Emaar Al Manar", "Emaar Andalusia", "Emaar Elite Al Khalil", 
+  "Emaar Elite Al Maabda", "Elaf Ajyad Hotel", "Elaf Al Mashaeer", "Elaf Bakkah Hotel", 
+  "Al Kiswah Towers Hotel", "Violet Hotel Makkah", "Borj Al Deafah", "Al Massa Grand Hotel", 
+  "Manar Al Tawhid Hotel", "Al Marwa Rayhaan by Rotana", "Al Safwah Tower Hotel", 
+  "Al Shohada Hotel", "Nawazi Ajyad Hotel", "Nawazi Watheer Hotel", "Jabal Omar Hilton Convention",
+  // MAKKAH 3-STAR
+  "Al Kiswah Hotel (Standard Blocks)", "Al Ebaa Hotel", "Al Olayan Ajyad", "Al Fajr Al Badea", 
+  "Al Fajr Al Khalil", "Al Fajr Al Manar", "Rehab Al Khalil Hotel", "Al Shohada Ajyad", 
+  "Rayyana Ajyad Hotel", "Nada Al Deafah", "Al Rawda Al Aqeeq", "Al Qimmah Hotel", 
+  "Al Noor Hotel", "Makarem Mina Hotel", "Al Aseel Ajyad",
+  // MADINA 5-STAR
+  "Anwar Al Madinah Mövenpick", "Madinah Hilton", "Pullman Zamzam Madinah", "InterContinental Dar Al Iman", 
+  "InterContinental Dar Al Hijra", "Bosphorus Hotel Madinah", "Taiba Front Hotel", "Al Aqeeq Madinah Hotel", 
+  "Sofitel Shahd Al Madinah", "Millennium Taiba Madinah", "Crowne Plaza Madinah", "Oberoi Madinah",
+  // MADINA 4-STAR
+  "Dallah Taibah Hotel", "Elaf Taiba Hotel", "Elaf Al Taqwa Hotel", "Zowar International Hotel", 
+  "Shaza Al Madina", "Province Al Sham Hotel", "Grand Plaza Al Madina", "Al Ansar Golden Tulip", 
+  "Al Ansar New Palace", "Madinah Seasons Hotel", "Concorde Al Khair Hotel", "Al Haram Hotel Madinah",
+  // MADINA 3-STAR
+  "Zowar Al Saqifah Hotel", "Zowar Al Madina", "Al Mukhtara International", "Al Eiman Taiba", 
+  "Al Eiman Ohud", "Al Eiman Al Qibla", "Al Manakha Rotana", "Al Salam Hotel", "Al Saha Hotel", 
+  "Al Nokhba Royal", "Sidra Al Madina Hotel", "Dar Al Naeem Hotel"
+];
+
 const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initialData, editingData, isCompact }) => {
   const isEdit = !!editingData;
   const customers = db.getCustomers(false);
@@ -73,12 +107,9 @@ const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initi
       });
 
       const units = (dataToLoad.rooms || 1) * dataToLoad.nights;
-      // Convert back to unit price in the original currency for the form
-      const divisor = (dataToLoad.currency === 'PKR') ? units : (units * (dataToLoad.roe || 1));
-      
       setFinances({
         unitSale: dataToLoad.sale_price_pkr / (dataToLoad.currency === 'PKR' ? units : (units * (dataToLoad.roe || 1))),
-        unitBuy: dataToLoad.buy_price_pkr / units, // Usually cost is tracked in PKR internally
+        unitBuy: dataToLoad.buy_price_pkr / units,
       });
     }
   }, [initialData, editingData]);
@@ -100,7 +131,6 @@ const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initi
 
   const units = formData.rooms * nights;
   
-  // Functional PKR Calculations (THE CORE FIX)
   const totalSalePKR = formData.currency === 'PKR' 
     ? (finances.unitSale * units) 
     : (finances.unitSale * units * formData.roe);
@@ -136,7 +166,7 @@ const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initi
       confirmation_no: formData.confirmationNo, 
       option_date: formData.optionDate, 
       check_in: formData.checkIn, 
-      check_out: formData.check_out, 
+      check_out: formData.checkOut, // FIXED: Changed from formData.check_out to formData.checkOut
       nights, 
       rooms: formData.rooms, 
       room_type: formData.roomType, 
@@ -231,7 +261,19 @@ const HotelVoucherEntry: React.FC<HotelVoucherEntryProps> = ({ onComplete, initi
                   <label className={labelClass}>Hotel Property</label>
                   <div className="relative">
                     <Bed className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input type="text" className={inputClass + " pl-12"} value={formData.hotelName} onChange={e => setFormData({...formData, hotelName: e.target.value})} placeholder="Property Title" />
+                    <input 
+                      type="text" 
+                      list="hotel-options"
+                      className={inputClass + " pl-12"} 
+                      value={formData.hotelName} 
+                      onChange={e => setFormData({...formData, hotelName: e.target.value})} 
+                      placeholder="Property Title (Makkah/Madina)" 
+                    />
+                    <datalist id="hotel-options">
+                      {HOTEL_OPTIONS.map((hotel, index) => (
+                        <option key={index} value={hotel} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
                 <div>
