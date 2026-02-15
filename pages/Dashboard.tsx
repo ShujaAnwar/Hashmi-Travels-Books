@@ -1,206 +1,147 @@
-
-import React, { useMemo, useState, useEffect } from 'react';
-import { db } from '../store';
-import { AccountType, VoucherType } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  DollarSign, 
-  CreditCard, 
-  TrendingUp, 
-  Activity, 
-  ShieldCheck,
-  AlertTriangle,
-  Ticket,
-  Cloud,
-  CloudOff
-} from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { supabase } from '../lib/supabase';
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  LineChart, Line, PieChart, Pie, Cell 
+} from 'recharts';
+import { getVouchers, getDashboardMetrics } from '../services/db';
+import { VoucherType, DashboardStats, Voucher } from '../types';
 
-interface DashboardProps {
-  isCompact: boolean;
-}
+const Dashboard: React.FC = () => {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalReceivables: 0,
+    totalPayables: 0,
+    totalIncome: 0,
+    totalCash: 0
+  });
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const Dashboard: React.FC<DashboardProps> = ({ isCompact }) => {
-  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
-  const integrity = useMemo(() => db.verifyAccountingIntegrity(), []);
-  
   useEffect(() => {
-    supabase.from('accounts').select('count', { count: 'exact', head: true })
-      .then(res => setDbConnected(!res.error))
-      .catch(() => setDbConnected(false));
-  }, []);
-
-  const stats = useMemo(() => {
-    const trialBalance = db.getTrialBalance();
-    return {
-      cash: trialBalance.filter(a => a.type === AccountType.CASH).reduce((sum, a) => sum + (a.debit - a.credit), 0),
-      bank: trialBalance.filter(a => a.type === AccountType.BANK).reduce((sum, a) => sum + (a.debit - a.credit), 0),
-      receivables: trialBalance.filter(a => a.type === AccountType.RECEIVABLE).reduce((sum, a) => sum + (a.debit - a.credit), 0),
-      payables: trialBalance.filter(a => a.type === AccountType.PAYABLE).reduce((sum, a) => sum + (a.credit - a.debit), 0),
-      revenue: trialBalance.filter(a => a.type === AccountType.INCOME).reduce((sum, a) => sum + (a.credit - a.debit), 0),
-      expenses: trialBalance.filter(a => a.type === AccountType.EXPENSE).reduce((sum, a) => sum + (a.debit - a.credit), 0),
+    const fetchData = async () => {
+      const [s, v] = await Promise.all([
+        getDashboardMetrics(),
+        getVouchers()
+      ]);
+      setStats(s);
+      setVouchers(v);
+      setLoading(false);
     };
+    fetchData();
   }, []);
 
-  const chartData = [
-    { name: 'Rev', amount: stats.revenue, color: '#3b82f6' },
-    { name: 'Exp', amount: stats.expenses, color: '#f43f5e' },
-    { name: 'Rec', amount: stats.receivables, color: '#10b981' },
-    { name: 'Pay', amount: stats.payables, color: '#f59e0b' },
-  ];
+  const pieData = useMemo(() => [
+    { name: 'Receivables', value: Math.max(stats.totalReceivables, 0.1), color: '#3B82F6' },
+    { name: 'Payables', value: Math.max(stats.totalPayables, 0.1), color: '#EF4444' }
+  ], [stats]);
+
+  const lineData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = new Date();
+    const last6Months = [];
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      last6Months.push({
+        name: months[d.getMonth()],
+        year: d.getFullYear(),
+        monthNum: d.getMonth(),
+        income: 0
+      });
+    }
+
+    vouchers.forEach(v => {
+      const vDate = new Date(v.date);
+      const targetMonth = last6Months.find(m => m.monthNum === vDate.getMonth() && m.year === vDate.getFullYear());
+      if (targetMonth && [VoucherType.HOTEL, VoucherType.VISA, VoucherType.TRANSPORT, VoucherType.TICKET].includes(v.type)) {
+        targetMonth.income += v.totalAmountPKR;
+      }
+    });
+
+    return last6Months;
+  }, [vouchers]);
+
+  if (loading) return (
+    <div className="flex justify-center items-center h-64">
+      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  );
 
   return (
-    <div className={`max-w-[1600px] mx-auto ${isCompact ? 'space-y-4' : 'space-y-6 sm:space-y-8'}`}>
-      
-      {/* Integrity & DB Status Badge */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className={`flex-1 flex items-start sm:items-center gap-3 rounded-[1.5rem] border shadow-sm transition-all ${isCompact ? 'px-4 py-2.5' : 'px-6 py-4'} ${integrity.balanced ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/30 text-rose-800 dark:text-rose-400'}`}>
-          {integrity.balanced ? <ShieldCheck size={isCompact ? 16 : 20} className="shrink-0" /> : <AlertTriangle size={isCompact ? 16 : 20} className="shrink-0" />}
-          <span className={`${isCompact ? 'text-[10px]' : 'text-xs sm:text-sm'} font-black uppercase tracking-widest`}>
-            {integrity.balanced 
-              ? `Balanced Ledger (Total: Rs. ${integrity.totalDebit.toLocaleString()})` 
-              : `Balance Mismatch! Diff: Rs. ${integrity.difference.toLocaleString()}`}
-          </span>
-        </div>
-
-        <div className={`flex items-center gap-3 rounded-[1.5rem] border shadow-sm px-6 py-4 ${dbConnected ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-rose-50 border-rose-100 text-rose-700'}`}>
-           {dbConnected ? <Cloud size={20} /> : <CloudOff size={20} />}
-           <span className="text-xs font-black uppercase tracking-widest">{dbConnected ? 'Database Connected' : 'Database Offline'}</span>
-        </div>
-      </div>
-
-      {/* Stat Cards */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 ${isCompact ? 'gap-3' : 'gap-4 sm:gap-6'}`}>
-        <StatCard 
-          isCompact={isCompact}
-          title="Cash & Bank" 
-          value={`Rs. ${(stats.cash + stats.bank).toLocaleString()}`} 
-          icon={<DollarSign className="text-blue-600 dark:text-blue-400" />}
-          trend="+2.4%" 
-          trendUp={true} 
-        />
-        <StatCard 
-          isCompact={isCompact}
-          title="Receivables" 
-          value={`Rs. ${stats.receivables.toLocaleString()}`} 
-          icon={<ArrowUpRight className="text-emerald-600 dark:text-emerald-400" />}
-          trend="+12%" 
-          trendUp={true} 
-        />
-        <StatCard 
-          isCompact={isCompact}
-          title="Payables" 
-          value={`Rs. ${stats.payables.toLocaleString()}`} 
-          icon={<ArrowDownRight className="text-rose-600 dark:text-rose-400" />}
-          trend="-4%" 
-          trendUp={false} 
-        />
-        <StatCard 
-          isCompact={isCompact}
-          title="Revenue" 
-          value={`Rs. ${stats.revenue.toLocaleString()}`} 
-          icon={<TrendingUp className="text-violet-600 dark:text-violet-400" />}
-          trend="+8.1%" 
-          trendUp={true} 
-        />
-      </div>
-
-      <div className={`grid grid-cols-1 xl:grid-cols-3 ${isCompact ? 'gap-4' : 'gap-6 sm:gap-8'}`}>
-        {/* Chart */}
-        <div className={`xl:col-span-2 bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col ${isCompact ? 'p-5' : 'p-6 sm:p-8'}`}>
-          <div className={`flex items-center justify-between ${isCompact ? 'mb-4' : 'mb-8'}`}>
-            <h3 className={`${isCompact ? 'text-sm' : 'text-base sm:text-lg'} font-black text-slate-900 dark:text-white uppercase tracking-tight`}>Flow Analytics</h3>
-            <Activity className="text-slate-300 dark:text-slate-600 shrink-0" size={18} />
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Receivables', value: stats.totalReceivables, color: 'blue', icon: '↗️', light: 'bg-blue-500' },
+          { label: 'Total Payables', value: stats.totalPayables, color: 'red', icon: '↘️', light: 'bg-rose-500' },
+          { label: 'Total Revenue', value: stats.totalIncome, color: 'green', icon: '💰', light: 'bg-emerald-500' },
+          { label: 'Cash/Bank', value: stats.totalCash, color: 'purple', icon: '🏦', light: 'bg-violet-500' }
+        ].map((card, i) => (
+          <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all hover:-translate-y-1 relative overflow-hidden group">
+            <div className={`absolute top-4 right-4 flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full border dark:border-slate-700`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${card.light} animate-blink shadow-[0_0_8px_rgba(59,130,246,0.5)]`}></div>
+              <span className="text-[8px] font-black uppercase tracking-tighter text-slate-500 dark:text-slate-400">Live</span>
+            </div>
+            <div className="flex justify-between items-start mb-4">
+              <span className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 text-xl group-hover:scale-110 transition-transform">{card.icon}</span>
+            </div>
+            <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">{card.label}</h3>
+            <p className="text-2xl font-orbitron font-bold mt-1 tracking-tighter">
+              PKR {card.value.toLocaleString()}
+            </p>
           </div>
-          <div className={`${isCompact ? 'h-64' : 'h-80 sm:h-96'} w-full min-h-0`}>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm min-w-0">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold">Real-time Income Trends</h3>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Last 6 Months</span>
+          </div>
+          <div className="h-72 w-full min-h-[300px] min-w-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-slate-100 dark:text-slate-800" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 800 }} className="fill-slate-400" />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 800 }} className="fill-slate-400" />
+              <LineChart data={lineData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} />
                 <Tooltip 
-                  cursor={{ fill: 'currentColor', className: 'text-slate-50 dark:text-slate-800' }}
-                  contentStyle={{ borderRadius: '16px', border: 'none', backgroundColor: '#0f172a', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '12px', color: '#fff' }}
+                  formatter={(value: number) => [`PKR ${value.toLocaleString()}`, "Revenue"]}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} 
                 />
-                <Bar dataKey="amount" radius={[6, 6, 0, 0]} barSize={isCompact ? 40 : 50}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
+                <Line type="monotone" dataKey="income" stroke="#3B82F6" strokeWidth={4} dot={{ r: 6, fill: '#3B82F6', strokeWidth: 0 }} activeDot={{ r: 8 }} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Recent Activity with Scrollbar */}
-        <div className={`bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 ${isCompact ? 'p-5' : 'p-6 sm:p-8'}`}>
-          <h3 className={`${isCompact ? 'text-sm' : 'text-base sm:text-lg'} font-black text-slate-900 dark:text-white uppercase tracking-tight ${isCompact ? 'mb-4' : 'mb-8'}`}>Recent Activity</h3>
-          
-          <div className={`${isCompact ? 'max-h-[350px]' : 'max-h-[450px]'} overflow-y-auto pr-2 custom-scrollbar`}>
-            <div className={`${isCompact ? 'space-y-2' : 'space-y-4'}`}>
-              {db.getVouchers().slice(-30).reverse().map((v) => (
-                <div key={v.id} className={`flex items-center justify-between transition-all border border-transparent hover:border-slate-100 dark:hover:border-slate-800 group rounded-xl ${isCompact ? 'p-2 hover:bg-slate-50 dark:hover:bg-slate-800/30' : 'p-4 hover:bg-slate-50 dark:hover:bg-slate-800/30'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`rounded-xl transition-transform ${isCompact ? 'p-2' : 'p-2.5'} ${
-                      v.type === VoucherType.RECEIPT ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400' :
-                      v.type === VoucherType.TRANSPORT ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 
-                      v.type === VoucherType.TICKET ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
-                      'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}>
-                      {v.type === VoucherType.RECEIPT ? <Ticket size={isCompact ? 14 : 16} /> : <CreditCard size={isCompact ? 14 : 16} />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`font-black text-slate-900 dark:text-slate-100 tracking-tight truncate ${isCompact ? 'text-xs' : 'text-sm'}`}>{v.voucher_no}</p>
-                      <p className={`font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ${isCompact ? 'text-[8px]' : 'text-[10px]'}`}>{v.type}</p>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                     <p className={`font-black text-slate-900 dark:text-slate-100 ${isCompact ? 'text-xs' : 'text-sm'}`}>Rs. {v.total_amount.toLocaleString()}</p>
-                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{v.date}</p>
-                  </div>
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center min-w-0">
+          <div className="flex-1 w-full h-72 min-h-[300px] min-w-0">
+            <h3 className="text-lg font-bold mb-4">Exposure Breakdown</h3>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => `PKR ${value.toLocaleString()}`} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="space-y-4 md:pl-6 w-full md:w-48 mt-4 md:mt-0">
+            {pieData.map((item, i) => (
+              <div key={i} className="flex items-center space-x-2">
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-slate-500 truncate">{item.name}</p>
+                  <p className="text-sm font-bold truncate">PKR {item.value.toLocaleString()}</p>
                 </div>
-              ))}
-              {db.getVouchers().length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 opacity-20">
-                   <Activity size={32} className="mb-2 dark:text-white"/>
-                   <p className="text-[10px] font-black uppercase tracking-widest dark:text-white">Idle Ledger</p>
-                </div>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
     </div>
   );
 };
-
-interface StatCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  trend: string;
-  trendUp: boolean;
-  isCompact: boolean;
-}
-
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, trend, trendUp, isCompact }) => (
-  <div className={`bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 group hover:border-emerald-500 transition-all hover:shadow-xl hover:shadow-emerald-900/5 ${isCompact ? 'p-4' : 'p-6 sm:p-7'}`}>
-    <div className={`flex justify-between items-start ${isCompact ? 'mb-3' : 'mb-6'}`}>
-      <div className={`bg-slate-50 dark:bg-slate-800 rounded-xl group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors ${isCompact ? 'p-2' : 'p-3'}`}>
-        {icon}
-      </div>
-      {!isCompact && (
-        <div className={`flex items-center gap-1 text-[10px] font-black tracking-widest uppercase ${trendUp ? 'text-emerald-600' : 'text-rose-600'}`}>
-          {trend}
-          {trendUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-        </div>
-      )}
-    </div>
-    <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">{title}</p>
-    <h4 className={`font-black text-slate-900 dark:text-white mt-1 tracking-tight truncate ${isCompact ? 'text-lg' : 'text-xl sm:text-2xl'}`}>{value}</h4>
-  </div>
-);
 
 export default Dashboard;
